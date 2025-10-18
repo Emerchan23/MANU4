@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste do Formulário de Equipamentos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste do Formulário de Equipamentos</h1>
+    
+    <div class="test-section">
+        <h2>1. Teste de Navegação</h2>
+        <button onclick="navigateToEditForm()">Ir para Edição do Equipamento 1</button>
+        <div id="navigation-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Teste da API Diretamente</h2>
+        <button onclick="testApiDirectly()">Testar API PUT /api/equipment/1</button>
+        <div id="api-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Verificar Dados Atuais</h2>
+        <button onclick="getCurrentData()">Buscar Dados Atuais do Equipamento 1</button>
+        <div id="current-data-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Instruções para Teste Manual</h2>
+        <div class="info result">
+            <strong>Para testar manualmente:</strong><br>
+            1. Clique em "Ir para Edição do Equipamento 1"<br>
+            2. Selecione uma categoria elétrica (ex: "Equipamentos Respiratórios")<br>
+            3. Verifique se o campo "Voltagem" aparece<br>
+            4. Selecione um subsetor<br>
+            5. Selecione uma voltagem<br>
+            6. Salve o formulário<br>
+            7. Volte aqui e clique em "Buscar Dados Atuais" para verificar se foi salvo
+        </div>
+    </div>
+
+    <script>
+        function navigateToEditForm() {
+            const resultDiv = document.getElementById('navigation-result');
+            resultDiv.innerHTML = '<div class="info result">Navegando para o formulário de edição...</div>';
+            
+            // Abrir em nova aba para não perder esta página de teste
+            window.open('/equipamentos/1/editar', '_blank');
+            
+            resultDiv.innerHTML = '<div class="success result">✅ Formulário aberto em nova aba. Teste manualmente e volte aqui para verificar os resultados.</div>';
+        }
+        
+        async function testApiDirectly() {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = '<div class="info result">Testando API...</div>';
+            
+            const testData = {
+                name: 'Teste Browser ' + new Date().getTime(),
+                description: 'Teste via browser',
+                category_id: 1, // Categoria elétrica
+                sector_id: 1,
+                subsector_id: 2,
+                voltage: '380V',
+                manufacturer: 'Teste Marca Browser',
+                model: 'Modelo Browser',
+                serial_number: 'SN' + new Date().getTime(),
+                installation_date: '2024-01-15',
+                maintenance_frequency_days: 90,
+                status: 'ativo',
+                observations: 'Teste direto via browser'
+            };
+            
+            try {
+                const response = await fetch('/api/equipment/1', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success result">
+                            ✅ API funcionando! Dados salvos:<br>
+                            - Subsetor ID: ${data.data.subsector_id}<br>
+                            - Voltagem: ${data.data.voltage}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error result">❌ Erro na API: ${data.message || 'Erro desconhecido'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error result">💥 Erro de conexão: ${error.message}</div>`;
+            }
+        }
+        
+        async function getCurrentData() {
+            const resultDiv = document.getElementById('current-data-result');
+            resultDiv.innerHTML = '<div class="info result">Buscando dados atuais...</div>';
+            
+            try {
+                const response = await fetch('/api/equipment/1');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const equipment = data.data;
+                    resultDiv.innerHTML = `
+                        <div class="success result">
+                            📊 <strong>Dados Atuais do Equipamento 1:</strong><br>
+                            - ID: ${equipment.id}<br>
+                            - Nome: ${equipment.name}<br>
+                            - Categoria ID: ${equipment.category_id}<br>
+                            - Setor ID: ${equipment.sector_id}<br>
+                            - <strong>Subsetor ID: ${equipment.subsector_id || 'NULL'} ${equipment.subsector_id ? '✅' : '❌'}</strong><br>
+                            - <strong>Voltagem: ${equipment.voltage || 'NULL'} ${equipment.voltage ? '✅' : '❌'}</strong><br>
+                            - Marca: ${equipment.manufacturer}<br>
+                            - Modelo: ${equipment.model}<br>
+                            - Status: ${equipment.status}<br>
+                            - Última atualização: ${new Date(equipment.updated_at).toLocaleString()}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error result">❌ Erro ao buscar dados: ${data.message || 'Erro desconhecido'}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error result">💥 Erro de conexão: ${error.message}</div>`;
+            }
+        }
+        
+        // Carregar dados atuais automaticamente ao abrir a página
+        window.onload = function() {
+            getCurrentData();
+        };
+    </script>
+</body>
+</html>

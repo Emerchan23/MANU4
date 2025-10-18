@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Conexão API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Conexão com API</h1>
+    
+    <div>
+        <button onclick="testApiConnection()">Testar Conexão API</button>
+        <button onclick="testEquipmentSave()">Testar Salvamento Equipamento</button>
+        <button onclick="clearLogs()">Limpar Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logsDiv.appendChild(logDiv);
+            console.log(message);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        async function testApiConnection() {
+            log('🔍 Testando conexão com API...');
+            
+            try {
+                // Testar conexão com backend na porta 3000
+                log('📡 Testando conexão direta com backend (porta 3000)...');
+                const directResponse = await fetch('http://localhost:3000/api/equipment', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (directResponse.ok) {
+                    const data = await directResponse.json();
+                    log(`✅ Conexão direta OK - ${data.length} equipamentos encontrados`, 'success');
+                } else {
+                    log(`❌ Erro na conexão direta: ${directResponse.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`💥 Erro na conexão direta: ${error.message}`, 'error');
+            }
+            
+            try {
+                // Testar conexão através do proxy (se houver)
+                log('🔄 Testando conexão através do proxy...');
+                const proxyResponse = await fetch('/api/equipment', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (proxyResponse.ok) {
+                    const data = await proxyResponse.json();
+                    log(`✅ Conexão via proxy OK - ${data.length} equipamentos encontrados`, 'success');
+                } else {
+                    log(`❌ Erro na conexão via proxy: ${proxyResponse.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`💥 Erro na conexão via proxy: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEquipmentSave() {
+            log('🔍 Testando salvamento de equipamento...');
+            
+            const equipmentData = {
+                name: 'Equipamento Teste Browser',
+                model: 'Modelo Test',
+                serial_number: 'SN-TEST-001',
+                brand: 'Marca Test',
+                sector_id: 1,
+                category_id: 1,
+                subsector_id: 1,
+                specifications: JSON.stringify({
+                    patrimonio: 'PAT-TEST-001',
+                    categoria: 'Categoria Teste',
+                    voltagem: '220V',
+                    subsetor: 'Subsetor Teste'
+                })
+            };
+            
+            log('📝 Dados do equipamento: ' + JSON.stringify(equipmentData, null, 2));
+            
+            try {
+                // Testar salvamento direto
+                log('📡 Enviando para backend direto (porta 3000)...');
+                const directResponse = await fetch('http://localhost:3000/api/equipment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(equipmentData)
+                });
+                
+                if (directResponse.ok) {
+                    const result = await directResponse.json();
+                    log(`✅ Salvamento direto OK - ID: ${result.id}, Código: ${result.code}`, 'success');
+                } else {
+                    const errorText = await directResponse.text();
+                    log(`❌ Erro no salvamento direto: ${directResponse.status} - ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`💥 Erro no salvamento direto: ${error.message}`, 'error');
+            }
+            
+            try {
+                // Testar salvamento via proxy
+                log('🔄 Enviando via proxy...');
+                const proxyResponse = await fetch('/api/equipment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(equipmentData)
+                });
+                
+                if (proxyResponse.ok) {
+                    const result = await proxyResponse.json();
+                    log(`✅ Salvamento via proxy OK - ID: ${result.id}, Código: ${result.code}`, 'success');
+                } else {
+                    const errorText = await proxyResponse.text();
+                    log(`❌ Erro no salvamento via proxy: ${proxyResponse.status} - ${errorText}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`💥 Erro no salvamento via proxy: ${error.message}`, 'error');
+            }
+        }
+        
+        // Executar teste inicial
+        window.onload = function() {
+            log('🚀 Página carregada. Pronto para testes!');
+        };
+    </script>
+</body>
+</html>

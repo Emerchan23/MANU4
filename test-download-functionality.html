@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Download de PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Funcionalidade de Download de PDF</h1>
+    
+    <div class="test-section">
+        <h2>1. Testar Geração de PDF</h2>
+        <button onclick="testPDFGeneration()">Gerar PDF de Teste</button>
+        <div id="generation-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Testar Download Direto</h2>
+        <button onclick="testDirectDownload()">Download do Último PDF</button>
+        <div id="download-result" class="result" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Listar PDFs Disponíveis</h2>
+        <button onclick="listAvailablePDFs()">Listar PDFs</button>
+        <div id="list-result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        let lastGeneratedPDF = null;
+
+        async function testPDFGeneration() {
+            const resultDiv = document.getElementById('generation-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Gerando PDF...';
+
+            try {
+                const response = await fetch('/api/pdf/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: 'service_order',
+                        data: {
+                            id: 'TEST-001',
+                            number: 'OS-TEST-001',
+                            description: 'Teste de geração de PDF',
+                            equipment: {
+                                name: 'Equipamento de Teste',
+                                manufacturer: 'Fabricante Teste',
+                                model: 'Modelo Teste',
+                                serial_number: 'SN-TEST-123',
+                                patrimonio_number: 'PAT-TEST-456'
+                            },
+                            sector: {
+                                name: 'Setor de Teste'
+                            },
+                            company: {
+                                name: 'Empresa Teste'
+                            },
+                            responsible: {
+                                name: 'Responsável Teste'
+                            },
+                            requested_by: 'Solicitante Teste',
+                            opening_date: '2024-01-15',
+                            deadline: '2024-01-30',
+                            estimated_cost: 200.00,
+                            priority: 'ALTA',
+                            status: 'ABERTA'
+                        }
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    lastGeneratedPDF = result.downloadUrl;
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ PDF gerado com sucesso!</strong><br>
+                        Arquivo: ${result.fileName}<br>
+                        Tamanho: ${result.fileSize} bytes<br>
+                        URL: ${result.downloadUrl}
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Erro: ${result.error || 'Erro desconhecido'}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Erro de rede: ${error.message}`;
+            }
+        }
+
+        async function testDirectDownload() {
+            const resultDiv = document.getElementById('download-result');
+            resultDiv.style.display = 'block';
+
+            if (!lastGeneratedPDF) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Nenhum PDF foi gerado ainda. Gere um PDF primeiro.';
+                return;
+            }
+
+            try {
+                resultDiv.className = 'result info';
+                resultDiv.innerHTML = 'Testando download...';
+
+                // Testar se o arquivo existe
+                const response = await fetch(lastGeneratedPDF, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    // Criar link de download
+                    const link = document.createElement('a');
+                    link.href = lastGeneratedPDF;
+                    link.download = lastGeneratedPDF.split('/').pop();
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `✅ Download iniciado para: ${lastGeneratedPDF}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Arquivo não encontrado: ${lastGeneratedPDF}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Erro no download: ${error.message}`;
+            }
+        }
+
+        async function listAvailablePDFs() {
+            const resultDiv = document.getElementById('list-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Carregando lista de PDFs...';
+
+            try {
+                const response = await fetch('/api/pdf/generate');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    if (result.exports && result.exports.length > 0) {
+                        let html = '<strong>📄 PDFs Disponíveis:</strong><br><br>';
+                        result.exports.forEach(pdf => {
+                            html += `
+                                <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                                    <strong>Tipo:</strong> ${pdf.document_type}<br>
+                                    <strong>Arquivo:</strong> ${pdf.file_path}<br>
+                                    <strong>Tamanho:</strong> ${pdf.file_size} bytes<br>
+                                    <strong>Status:</strong> ${pdf.status}<br>
+                                    <strong>Criado em:</strong> ${new Date(pdf.created_at).toLocaleString()}<br>
+                                    <button onclick="downloadPDF('${pdf.file_path}')">Download</button>
+                                </div>
+                            `;
+                        });
+                        resultDiv.className = 'result success';
+                        resultDiv.innerHTML = html;
+                    } else {
+                        resultDiv.className = 'result info';
+                        resultDiv.innerHTML = 'ℹ️ Nenhum PDF encontrado no banco de dados.';
+                    }
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Erro ao listar PDFs: ${result.error || 'Erro desconhecido'}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Erro de rede: ${error.message}`;
+            }
+        }
+
+        function downloadPDF(filePath) {
+            const link = document.createElement('a');
+            link.href = filePath;
+            link.download = filePath.split('/').pop();
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Dropdown Simples</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dropdown-button:hover {
+            background-color: #0056b3;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            right: 0;
+            top: 100%;
+            margin-top: 4px;
+        }
+        .dropdown-content.show {
+            display: block;
+        }
+        .dropdown-item {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+        .dropdown-item:hover {
+            background-color: #f1f1f1;
+        }
+        .logout-item {
+            color: #dc3545;
+            border-top: 1px solid #eee;
+        }
+        .logout-item:hover {
+            background-color: #f8d7da;
+        }
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #28a745;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .user-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .user-role {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste do Dropdown do Usuário</h1>
+    <p>Clique no botão abaixo para testar o dropdown:</p>
+    
+    <div class="dropdown">
+        <button class="dropdown-button" onclick="toggleDropdown()">
+            <div class="avatar">A</div>
+            <div class="user-info">
+                <span class="user-name">admin</span>
+                <span class="user-role">ADMIN</span>
+            </div>
+        </button>
+        <div class="dropdown-content" id="dropdownContent">
+            <div class="dropdown-item">
+                <strong>Minha Conta</strong>
+            </div>
+            <div class="dropdown-item">
+                <div class="user-name">admin</div>
+                <div style="font-size: 12px; color: #666;">ID: 1</div>
+            </div>
+            <button class="dropdown-item logout-item" onclick="testLogout()">
+                🚪 Sair
+            </button>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <h3>Log de Eventos:</h3>
+        <div id="log" style="background: white; padding: 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px;"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            console.log(message);
+        }
+
+        function toggleDropdown() {
+            log('🔍 Dropdown button clicked!');
+            const dropdown = document.getElementById('dropdownContent');
+            dropdown.classList.toggle('show');
+            
+            if (dropdown.classList.contains('show')) {
+                log('✅ Dropdown opened');
+            } else {
+                log('❌ Dropdown closed');
+            }
+        }
+
+        function testLogout() {
+            log('🚪 Logout button clicked!');
+            alert('Logout funcionando! O botão está visível e clicável.');
+        }
+
+        // Close dropdown when clicking outside
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropdown-button') && !event.target.closest('.dropdown-button')) {
+                const dropdown = document.getElementById('dropdownContent');
+                if (dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                    log('🔒 Dropdown closed (clicked outside)');
+                }
+            }
+        }
+
+        // Log initial state
+        log('🚀 Teste iniciado - Dropdown pronto para uso');
+    </script>
+</body>
+</html>

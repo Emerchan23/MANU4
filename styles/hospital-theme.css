@@ -1,0 +1,23 @@
+/* Minimal hospital theme variables and defaults */
+:root {
+  --color-primary: #0ea5e9;
+  --color-secondary: #22c55e;
+  --color-accent: #f59e0b;
+  --color-bg: #ffffff;
+  --color-text: #0f172a;
+}
+
+html, body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.app-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.brand-primary { color: var(--color-primary); }
+.brand-secondary { color: var(--color-secondary); }
+.brand-accent { color: var(--color-accent); }

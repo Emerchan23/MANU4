@@ -1,0 +1,325 @@
+// Script para criar agendamento completo com todos os campos
+console.log('🚀 INICIANDO CRIAÇÃO DE AGENDAMENTO COMPLETO');
+
+// Função para aguardar elemento aparecer
+function waitForElement(selector, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const element = document.querySelector(selector);
+    if (element) {
+      resolve(element);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const element = document.querySelector(selector);
+      if (element) {
+        observer.disconnect();
+        resolve(element);
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`Elemento ${selector} não encontrado em ${timeout}ms`));
+    }, timeout);
+  });
+}
+
+// Função para simular evento de mudança
+function triggerChange(element) {
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+// Função para aguardar um tempo
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Função principal de preenchimento
+async function createCompleteAppointment() {
+  try {
+    console.log('📋 Iniciando preenchimento do formulário...');
+    
+    // Aguardar a página carregar completamente
+    await sleep(2000);
+
+    // 1. Empresa Prestadora (se existir)
+    console.log('1️⃣ Tentando selecionar empresa...');
+    try {
+      const empresaSelect = await waitForElement('select[name="companyId"], select[name="company_id"], select[name="serviceCompanyId"]', 3000);
+      if (empresaSelect && empresaSelect.options.length > 1) {
+        empresaSelect.value = empresaSelect.options[1].value; // Primeira opção válida
+        triggerChange(empresaSelect);
+        console.log('✅ Empresa selecionada:', empresaSelect.options[empresaSelect.selectedIndex].text);
+      }
+    } catch (error) {
+      console.log('⚠️ Campo empresa não encontrado ou não disponível');
+    }
+
+    await sleep(1000);
+
+    // 2. Equipamento (OBRIGATÓRIO)
+    console.log('2️⃣ Selecionando equipamento...');
+    try {
+      const equipamentoSelect = await waitForElement('select[name="equipmentId"], select[name="equipment_id"]', 5000);
+      if (equipamentoSelect && equipamentoSelect.options.length > 1) {
+        // Procurar por "Ventilador" ou usar a primeira opção válida
+        let selectedOption = null;
+        for (let i = 1; i < equipamentoSelect.options.length; i++) {
+          if (equipamentoSelect.options[i].text.toLowerCase().includes('ventilador')) {
+            selectedOption = equipamentoSelect.options[i];
+            break;
+          }
+        }
+        if (!selectedOption) {
+          selectedOption = equipamentoSelect.options[1]; // Primeira opção válida
+        }
+        
+        equipamentoSelect.value = selectedOption.value;
+        triggerChange(equipamentoSelect);
+        console.log('✅ Equipamento selecionado:', selectedOption.text);
+      } else {
+        throw new Error('Nenhum equipamento disponível');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao selecionar equipamento:', error.message);
+      return;
+    }
+
+    await sleep(1000);
+
+    // 3. Tipo de Manutenção (OBRIGATÓRIO)
+    console.log('3️⃣ Selecionando tipo de manutenção...');
+    try {
+      const tipoSelect = await waitForElement('select[name="maintenanceType"], select[name="maintenance_type"], select[name="maintenanceTypeId"]', 5000);
+      if (tipoSelect && tipoSelect.options.length > 1) {
+        // Procurar por "Preventiva" ou usar a primeira opção válida
+        let selectedOption = null;
+        for (let i = 1; i < tipoSelect.options.length; i++) {
+          if (tipoSelect.options[i].text.toLowerCase().includes('preventiva')) {
+            selectedOption = tipoSelect.options[i];
+            break;
+          }
+        }
+        if (!selectedOption) {
+          selectedOption = tipoSelect.options[1]; // Primeira opção válida
+        }
+        
+        tipoSelect.value = selectedOption.value;
+        triggerChange(tipoSelect);
+        console.log('✅ Tipo de manutenção selecionado:', selectedOption.text);
+      } else {
+        throw new Error('Nenhum tipo de manutenção disponível');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao selecionar tipo de manutenção:', error.message);
+      return;
+    }
+
+    await sleep(1000);
+
+    // 4. Template (se existir)
+    console.log('4️⃣ Tentando selecionar template...');
+    try {
+      const templateSelect = await waitForElement('select[name="template"], select[name="templateId"]', 3000);
+      if (templateSelect && templateSelect.options.length > 1) {
+        templateSelect.value = templateSelect.options[1].value;
+        triggerChange(templateSelect);
+        console.log('✅ Template selecionado:', templateSelect.options[templateSelect.selectedIndex].text);
+      }
+    } catch (error) {
+      console.log('⚠️ Campo template não encontrado ou não disponível');
+    }
+
+    await sleep(1000);
+
+    // 5. Descrição do Serviço (OBRIGATÓRIO)
+    console.log('5️⃣ Preenchendo descrição...');
+    try {
+      const descricaoTextarea = await waitForElement('textarea[name="description"], textarea[name="serviceDescription"]', 5000);
+      const descricaoTexto = 'Manutenção preventiva completa do ventilador pulmonar, incluindo verificação de todos os componentes, calibração dos sensores, limpeza dos filtros e teste de funcionamento. Procedimento essencial para garantir a segurança e eficiência do equipamento médico.';
+      descricaoTextarea.value = descricaoTexto;
+      triggerChange(descricaoTextarea);
+      console.log('✅ Descrição preenchida');
+    } catch (error) {
+      console.error('❌ Erro ao preencher descrição:', error.message);
+      return;
+    }
+
+    await sleep(1000);
+
+    // 6. Data Agendada (OBRIGATÓRIO)
+    console.log('6️⃣ Definindo data agendada...');
+    try {
+      const dataInput = await waitForElement('input[name="scheduledDate"], input[name="scheduled_date"], input[type="date"]', 5000);
+      const dataFutura = new Date();
+      dataFutura.setDate(dataFutura.getDate() + 30); // 30 dias no futuro
+      const dataFormatada = dataFutura.toISOString().split('T')[0]; // YYYY-MM-DD
+      dataInput.value = dataFormatada;
+      triggerChange(dataInput);
+      console.log('✅ Data agendada definida:', dataFormatada);
+    } catch (error) {
+      console.error('❌ Erro ao definir data:', error.message);
+      return;
+    }
+
+    await sleep(1000);
+
+    // 7. Prioridade (OBRIGATÓRIO)
+    console.log('7️⃣ Definindo prioridade...');
+    try {
+      const prioridadeSelect = await waitForElement('select[name="priority"]', 5000);
+      if (prioridadeSelect && prioridadeSelect.options.length > 0) {
+        // Procurar por "Alta" ou "ALTA"
+        let selectedOption = null;
+        for (let i = 0; i < prioridadeSelect.options.length; i++) {
+          const optionText = prioridadeSelect.options[i].text.toLowerCase();
+          const optionValue = prioridadeSelect.options[i].value.toLowerCase();
+          if (optionText.includes('alta') || optionValue.includes('alta') || optionValue === 'high') {
+            selectedOption = prioridadeSelect.options[i];
+            break;
+          }
+        }
+        if (!selectedOption && prioridadeSelect.options.length > 1) {
+          selectedOption = prioridadeSelect.options[1]; // Segunda opção se não encontrar "Alta"
+        }
+        if (selectedOption) {
+          prioridadeSelect.value = selectedOption.value;
+          triggerChange(prioridadeSelect);
+          console.log('✅ Prioridade definida:', selectedOption.text);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao definir prioridade:', error.message);
+    }
+
+    await sleep(1000);
+
+    // 8. Valor Estimado
+    console.log('8️⃣ Definindo valor estimado...');
+    try {
+      const valorInput = await waitForElement('input[name="estimatedValue"], input[name="estimated_cost"], input[name="estimatedCost"]', 3000);
+      if (valorInput) {
+        valorInput.value = '850.00';
+        triggerChange(valorInput);
+        console.log('✅ Valor estimado definido: R$ 850,00');
+      }
+    } catch (error) {
+      console.log('⚠️ Campo valor estimado não encontrado');
+    }
+
+    await sleep(1000);
+
+    // 9. Responsável
+    console.log('9️⃣ Selecionando responsável...');
+    try {
+      const responsavelSelect = await waitForElement('select[name="assignedTo"], select[name="assigned_user_id"], select[name="assignedUserId"]', 3000);
+      if (responsavelSelect && responsavelSelect.options.length > 1) {
+        responsavelSelect.value = responsavelSelect.options[1].value; // Primeira opção válida
+        triggerChange(responsavelSelect);
+        console.log('✅ Responsável selecionado:', responsavelSelect.options[responsavelSelect.selectedIndex].text);
+      }
+    } catch (error) {
+      console.log('⚠️ Campo responsável não encontrado');
+    }
+
+    await sleep(1000);
+
+    // 10. Recorrência (se existir)
+    console.log('🔟 Tentando definir recorrência...');
+    try {
+      const recorrenciaSelect = await waitForElement('select[name="recurrenceType"], select[name="recurrence"]', 3000);
+      if (recorrenciaSelect && recorrenciaSelect.options.length > 1) {
+        // Procurar por "Mensal"
+        let selectedOption = null;
+        for (let i = 1; i < recorrenciaSelect.options.length; i++) {
+          if (recorrenciaSelect.options[i].text.toLowerCase().includes('mensal')) {
+            selectedOption = recorrenciaSelect.options[i];
+            break;
+          }
+        }
+        if (!selectedOption) {
+          selectedOption = recorrenciaSelect.options[1]; // Primeira opção válida
+        }
+        
+        recorrenciaSelect.value = selectedOption.value;
+        triggerChange(recorrenciaSelect);
+        console.log('✅ Recorrência definida:', selectedOption.text);
+      }
+    } catch (error) {
+      console.log('⚠️ Campo recorrência não encontrado');
+    }
+
+    await sleep(1000);
+
+    // 11. Observações
+    console.log('1️⃣1️⃣ Preenchendo observações...');
+    try {
+      const observacoesTextarea = await waitForElement('textarea[name="observations"], textarea[name="notes"], textarea[name="instructions"]', 3000);
+      if (observacoesTextarea) {
+        const observacoesTexto = 'Teste completo de todos os campos do formulário de agendamento. Verificar se todos os dados são salvos corretamente no banco MariaDB. Agendamento criado automaticamente para validação do sistema.';
+        observacoesTextarea.value = observacoesTexto;
+        triggerChange(observacoesTextarea);
+        console.log('✅ Observações preenchidas');
+      }
+    } catch (error) {
+      console.log('⚠️ Campo observações não encontrado');
+    }
+
+    await sleep(2000);
+
+    console.log('🎉 FORMULÁRIO PREENCHIDO COM SUCESSO!');
+    console.log('📤 Pronto para submeter...');
+
+    // 12. Submeter formulário
+    console.log('🚀 Submetendo formulário...');
+    try {
+      const submitButton = await waitForElement('button[type="submit"], input[type="submit"], button:contains("Criar"), button:contains("Salvar")', 5000);
+      if (submitButton) {
+        submitButton.click();
+        console.log('✅ Formulário submetido!');
+        
+        // Aguardar resposta
+        await sleep(3000);
+        
+        // Verificar se houve sucesso ou erro
+        const successMessage = document.querySelector('.success, .alert-success, [class*="success"]');
+        const errorMessage = document.querySelector('.error, .alert-error, .alert-danger, [class*="error"]');
+        
+        if (successMessage) {
+          console.log('🎉 SUCESSO! Agendamento criado com sucesso!');
+          console.log('Mensagem:', successMessage.textContent);
+        } else if (errorMessage) {
+          console.log('❌ ERRO na submissão!');
+          console.log('Mensagem de erro:', errorMessage.textContent);
+        } else {
+          console.log('⚠️ Submissão realizada, mas não foi possível detectar o resultado');
+        }
+        
+      } else {
+        console.log('❌ Botão de submissão não encontrado');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao submeter formulário:', error.message);
+    }
+
+  } catch (error) {
+    console.error('❌ Erro geral na criação do agendamento:', error);
+  }
+}
+
+// Executar após carregamento da página
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', createCompleteAppointment);
+} else {
+  createCompleteAppointment();
+}
+
+console.log('📋 Script carregado. Execute createCompleteAppointment() se necessário.');

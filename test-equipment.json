@@ -1,0 +1,8 @@
+{
+  "name": "Teste Equipamento",
+  "model": "Modelo Teste",
+  "serial_number": "123456",
+  "brand": "Marca Teste",
+  "sector_id": 1,
+  "specifications": "{\"patrimonio\":\"PAT123\"}"
+}
