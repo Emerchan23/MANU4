@@ -241,8 +241,9 @@ export async function POST(request: NextRequest) {
     const insertQuery = `
       INSERT INTO maintenance_schedules (
         equipment_id, description, scheduled_date, priority, 
-        assigned_user_id, created_by, maintenance_plan_id, estimated_cost, company_id, observations
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        assigned_user_id, created_by, maintenance_plan_id, estimated_cost, company_id, observations,
+        recurrence_type, recurrence_interval
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
     console.log('💾 Salvando dados:', {
@@ -268,10 +269,29 @@ export async function POST(request: NextRequest) {
       maintenancePlanId && maintenancePlanId !== 'none' && maintenancePlanId !== '' ? parseInt(maintenancePlanId) : null,
       estimatedValue || null,
       companyId || null,
-      observations || null
+      observations || null,
+      recurrenceType,
+      recurrenceInterval
     ])
 
     console.log('✅ Agendamento inserido com ID:', result.insertId);
+
+    // Criar agendamentos recorrentes se necessário
+    if (recurrenceType && recurrenceType !== 'none') {
+      console.log('🔄 Criando agendamentos recorrentes...');
+      await createRecurringSchedules(result.insertId, {
+        equipmentId,
+        maintenanceType,
+        description,
+        scheduledDate,
+        priority: dbPriority,
+        assignedTo,
+        estimatedValue,
+        recurrenceType,
+        recurrenceInterval,
+        createdBy: createdBy || 1
+      });
+    }
 
     // Buscar agendamento criado
     const [createdSchedule] = await connection.execute(`
@@ -299,10 +319,14 @@ export async function POST(request: NextRequest) {
       updated_at: schedule.updated_at ? new Date(schedule.updated_at).toLocaleDateString('pt-BR') : null
     }
 
+    const message = recurrenceType && recurrenceType !== 'none' 
+      ? `Agendamento criado com sucesso! ${12} agendamentos recorrentes foram gerados.`
+      : 'Agendamento criado com sucesso!'
+
     return NextResponse.json({
       success: true,
       data: formattedSchedule,
-      message: 'Agendamento criado com sucesso!'
+      message
     })
 
   } catch (error) {
@@ -320,50 +344,63 @@ export async function POST(request: NextRequest) {
 
 // Função auxiliar para criar agendamentos recorrentes
 async function createRecurringSchedules(originalId: number, scheduleData: any) {
-  const { 
-    equipmentId, maintenanceType, description, scheduledDate, 
-    priority, assignedTo, estimatedValue, recurrenceType, recurrenceInterval, createdBy 
-  } = scheduleData
+  let connection;
+  try {
+    const { 
+      equipmentId, maintenanceType, description, scheduledDate, 
+      priority, assignedTo, estimatedValue, recurrenceType, recurrenceInterval, createdBy 
+    } = scheduleData
 
-  // Criar até 12 próximos agendamentos (1 ano)
-  let nextDate = new Date(scheduledDate)
-  
-  for (let i = 0; i < 12; i++) {
-    // Calcular próxima data baseada no tipo de recorrência
-    switch (recurrenceType) {
-      case 'daily':
-        nextDate = addDays(nextDate, recurrenceInterval)
-        break
-      case 'weekly':
-        nextDate = addDays(nextDate, recurrenceInterval * 7)
-        break
-      case 'monthly':
-        nextDate = new Date(nextDate)
-        nextDate.setMonth(nextDate.getMonth() + recurrenceInterval)
-        break
-      case 'yearly':
-        nextDate = new Date(nextDate)
-        nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval)
-        break
-      default:
-        return
+    connection = await mysql.createConnection(dbConfig);
+
+    // Criar até 12 próximos agendamentos (1 ano)
+    let nextDate = new Date(scheduledDate)
+    
+    for (let i = 0; i < 12; i++) {
+      // Calcular próxima data baseada no tipo de recorrência
+      switch (recurrenceType) {
+        case 'daily':
+          nextDate = new Date(nextDate)
+          nextDate.setDate(nextDate.getDate() + recurrenceInterval)
+          break
+        case 'weekly':
+          nextDate = new Date(nextDate)
+          nextDate.setDate(nextDate.getDate() + (recurrenceInterval * 7))
+          break
+        case 'monthly':
+          nextDate = new Date(nextDate)
+          nextDate.setMonth(nextDate.getMonth() + recurrenceInterval)
+          break
+        case 'yearly':
+          nextDate = new Date(nextDate)
+          nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval)
+          break
+        default:
+          return
+      }
+
+      // Inserir próximo agendamento
+      await connection.execute(`
+        INSERT INTO maintenance_schedules (
+          equipment_id, description, scheduled_date, priority, 
+          assigned_user_id, estimated_cost, created_by, parent_schedule_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        equipmentId,
+        description,
+        nextDate.toISOString().slice(0, 19).replace('T', ' '),
+        priority,
+        assignedTo,
+        estimatedValue || null,
+        createdBy,
+        originalId
+      ])
     }
-
-    // Inserir próximo agendamento
-    await query(`
-      INSERT INTO maintenance_schedules (
-        equipment_id, maintenance_type, description, scheduled_date, priority, 
-        assigned_user_id, estimated_cost, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      equipmentId,
-      maintenanceType,
-      description,
-      formatDateISO(nextDate),
-      priority,
-      assignedTo,
-      estimatedValue || null,
-      createdBy
-    ])
+  } catch (error) {
+    console.error('❌ Erro ao criar agendamentos recorrentes:', error)
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
 }

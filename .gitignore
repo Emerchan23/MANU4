@@ -27,6 +27,20 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+
+# Arquivos de teste e debug
+test-*.cjs
+test-*.js
+debug-*.js
+check-*.cjs
+execute_migration.cjs
+add_parent_schedule_field.sql
+create-dashboard-views.sql
+
+# Arquivos de backup
+*-backup.*
+*-test.*
 
 # vercel
 .vercel

@@ -8,18 +8,18 @@ export async function GET(request: NextRequest) {
     const sectorId = searchParams.get('sectorId')
     
     let subsectorsQuery = `
-      SELECT s.id, s.nome as name, s.descricao as description, s.setor_id as sector_id, sec.nome as sector_name
-      FROM subsetores s
-      LEFT JOIN setores sec ON s.setor_id = sec.id
+      SELECT s.id, s.name, s.description, s.sector_id, sec.name as sector_name
+      FROM subsectors s
+      LEFT JOIN sectors sec ON s.sector_id = sec.id
     `
     const queryParams: any[] = []
     
     if (sectorId) {
-      subsectorsQuery += ' WHERE s.setor_id = ?'
+      subsectorsQuery += ' WHERE s.sector_id = ?'
       queryParams.push(sectorId)
     }
     
-    subsectorsQuery += ' ORDER BY s.nome'
+    subsectorsQuery += ' ORDER BY s.name'
     
     const subsectors = await query(subsectorsQuery, queryParams) as any[]
     
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
     
     const result = await execute(`
-      INSERT INTO subsetores (nome, descricao, setor_id) 
+      INSERT INTO subsectors (name, description, sector_id) 
       VALUES (?, ?, ?)
     `, [name, description || null, sector_id])
     
@@ -78,8 +78,8 @@ export async function PUT(request: NextRequest) {
     }
     
     await execute(`
-      UPDATE subsetores 
-      SET nome = ?, descricao = ?, setor_id = ?
+      UPDATE subsectors 
+      SET name = ?, description = ?, sector_id = ?
       WHERE id = ?
     `, [name, description || null, sector_id, id])
     
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
     
-    await execute('DELETE FROM subsetores WHERE id = ?', [id])
+    await execute('DELETE FROM subsectors WHERE id = ?', [id])
     
     return NextResponse.json({ success: true })
   } catch (error) {

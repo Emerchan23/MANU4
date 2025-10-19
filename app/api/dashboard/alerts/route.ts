@@ -1,49 +1,75 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
+import mysql from 'mysql2/promise';
 
-// Endpoints de alertas do dashboard desativados: aba Alertas removida e tabelas dropadas
-// Mantemos respostas seguras para evitar que o frontend que ainda
-// consuma estes endpoints quebre.
+// Database connection configuration
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'hospital_maintenance',
+};
 
 export async function GET(request: NextRequest) {
+  let connection;
+  
   try {
+    connection = await mysql.createConnection(dbConfig);
+    
+    // Get critical alerts from the view
+    const [alertsRows] = await connection.execute(
+      'SELECT * FROM critical_alerts_view LIMIT 10'
+    );
+    
+    // Transform data for frontend consumption
+    const alerts = (alertsRows as any[]).map(alert => ({
+      id: alert.id,
+      type: alert.alert_type,
+      priority: alert.priority,
+      description: alert.description,
+      dueDate: alert.data_vencimento,
+      daysOverdue: alert.dias_atraso,
+      status: alert.status,
+      equipment: {
+        name: alert.equipment_name,
+        code: alert.equipment_code,
+      },
+      sector: alert.sector_name,
+    }));
+    
+    // Get alert statistics
+    const [statsRows] = await connection.execute(`
+      SELECT 
+        COUNT(*) as total_alerts,
+        SUM(CASE WHEN prioridade = 'ALTA' THEN 1 ELSE 0 END) as high_priority,
+        SUM(CASE WHEN prioridade = 'MEDIA' THEN 1 ELSE 0 END) as medium_priority,
+        SUM(CASE WHEN prioridade = 'BAIXA' THEN 1 ELSE 0 END) as low_priority,
+        SUM(CASE WHEN dias_atraso > 0 THEN 1 ELSE 0 END) as overdue_alerts
+      FROM alerts 
+      WHERE status = 'ATIVO'
+    `);
+    
+    const stats = statsRows[0] as any;
+    
     return NextResponse.json({
-      success: true,
-      message: 'Funcionalidade de Alertas removida',
-      data: {
-        alerts: [],
-        stats: {
-          total: 0,
-          active: 0,
-          critical: 0,
-          warning: 0,
-          info: 0,
-          last_24h: 0
-        }
+      alerts,
+      statistics: {
+        total: stats.total_alerts || 0,
+        highPriority: stats.high_priority || 0,
+        mediumPriority: stats.medium_priority || 0,
+        lowPriority: stats.low_priority || 0,
+        overdue: stats.overdue_alerts || 0,
       },
-      timestamp: new Date().toISOString()
-    })
+    });
+    
   } catch (error) {
+    console.error('Database error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
-      },
+      { error: 'Failed to fetch alerts' },
       { status: 500 }
-    )
+    );
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
-}
-
-export async function POST() {
-  return NextResponse.json(
-    { success: false, error: 'Funcionalidade de Alertas removida' },
-    { status: 410 }
-  )
-}
-
-export async function PATCH() {
-  return NextResponse.json(
-    { success: false, error: 'Funcionalidade de Alertas removida' },
-    { status: 410 }
-  )
 }

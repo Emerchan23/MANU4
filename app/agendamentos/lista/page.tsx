@@ -218,6 +218,38 @@ export default function AgendamentosListaPage() {
     }
   }
 
+  const handleCancelSchedule = async (scheduleId: string) => {
+    if (confirm('Tem certeza que deseja cancelar este agendamento?')) {
+      try {
+        const response = await fetch(`/api/maintenance-schedules/${scheduleId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'cancelado'
+          })
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          toast.success('Agendamento cancelado com sucesso!')
+          fetchSchedules(filters)
+        } else {
+          toast.error('Erro ao cancelar agendamento', {
+            description: data.error || 'Erro desconhecido'
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao cancelar agendamento:', error)
+        toast.error('Erro ao cancelar agendamento', {
+          description: 'Ocorreu um erro de comunicação com o servidor'
+        })
+      }
+    }
+  }
+
   // Função para converter agendamento em ordem de serviço
   const handleConvertToServiceOrder = async (scheduleId: string) => {
     if (convertingSchedules.includes(scheduleId)) {
@@ -419,6 +451,34 @@ export default function AgendamentosListaPage() {
               <Plus className="h-4 w-4 mr-2" />
               Novo Agendamento
             </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Menu de Navegação */}
+      <div className="bg-white rounded-lg border shadow-sm">
+        <div className="flex border-b overflow-x-auto">
+          <Link href="/agendamentos/novo">
+            <button className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <Plus className="h-4 w-4" />
+              Novo Agendamento
+            </button>
+          </Link>
+          <button className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600 bg-blue-50 whitespace-nowrap">
+            <FileText className="h-4 w-4" />
+            Lista de Agendamentos
+          </button>
+          <Link href="/agendamentos/calendario">
+            <button className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <Calendar className="h-4 w-4" />
+              Calendário
+            </button>
+          </Link>
+          <Link href="/agendamentos">
+            <button className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <Wrench className="h-4 w-4" />
+              Dashboard
+            </button>
           </Link>
         </div>
       </div>
@@ -765,6 +825,19 @@ export default function AgendamentosListaPage() {
                               <Edit className="h-5 w-5" />
                             </Button>
                           </Link>
+                          
+                          {/* Botão Cancelar - aparece para agendamentos não concluídos */}
+                          {(schedule.status !== 'COMPLETED' && schedule.status !== 'concluido' && schedule.status !== 'cancelado') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCancelSchedule(schedule.id)}
+                              className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 flex items-center justify-center shrink-0"
+                              title="Cancelar Agendamento"
+                            >
+                              <Clock className="h-5 w-5" />
+                            </Button>
+                          )}
                           
                           <Button
                             size="sm"

@@ -55,7 +55,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
       if (activeFilters.page) queryParams.append('page', activeFilters.page.toString())
       if (activeFilters.limit) queryParams.append('limit', activeFilters.limit.toString())
 
-      const response = await fetch(`/api/maintenance-schedules?${queryParams.toString()}`)
+      const response = await fetch(`/api/agendamentos?${queryParams.toString()}`)
       
       if (!response.ok) {
         throw new Error(`Erro ao buscar agendamentos: ${response.status}`)
@@ -85,7 +85,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
     setError(null)
 
     try {
-      const response = await fetch('/api/maintenance-schedules', {
+      const response = await fetch('/api/agendamentos', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
     setError(null)
 
     try {
-      const response = await fetch('/api/maintenance-schedules', {
+      const response = await fetch('/api/agendamentos', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -163,7 +163,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
     setError(null)
 
     try {
-      const response = await fetch(`/api/maintenance-schedules/${id}`, {
+      const response = await fetch(`/api/agendamentos/${id}`, {
         method: 'DELETE',
       })
 
@@ -197,7 +197,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
     setError(null)
 
     try {
-      const response = await fetch(`/api/maintenance-schedules/${id}`)
+      const response = await fetch(`/api/agendamentos/${id}`)
       
       if (!response.ok) {
         throw new Error(`Erro ao buscar agendamento: ${response.status}`)
@@ -225,7 +225,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
     setError(null)
 
     try {
-      const response = await fetch(`/api/maintenance-schedules/${id}/complete`, {
+      const response = await fetch(`/api/agendamentos/${id}/complete`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

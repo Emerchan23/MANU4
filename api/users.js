@@ -14,32 +14,26 @@ const router = express.Router()
 router.get("/", async (req, res) => {
   try {
     const users = await query(`
-      SELECT u.id, u.nick, u.name, u.email, u.profile, u.sector_id, u.permissions, u.created_at,
-             s.nome as sector_name
+      SELECT u.id, u.username, u.full_name as name, u.email, u.role, u.sector_id, u.created_at, u.is_active, u.is_admin,
+             s.name as sector_name
       FROM users u
-      LEFT JOIN setores s ON u.sector_id = s.id
-      ORDER BY u.name
+      LEFT JOIN sectors s ON u.sector_id = s.id
+      ORDER BY u.full_name
     `)
 
     // Transform data to frontend format
     const transformedUsers = users.map(user => {
-      const permissions = JSON.parse(user.permissions || "{}")
-      
-      // Map database profile to frontend role
-      const frontendRole = {
-        'admin': 'ADMIN',
-        'gestor': 'GESTOR',
-        'usuario': 'USUARIO'
-      }[user.profile] || 'USUARIO'
+      // Map database role to frontend role
+      const frontendRole = user.is_admin ? 'ADMIN' : (user.role ? user.role.toUpperCase() : 'USUARIO')
       
       return {
         id: user.id,
-        username: user.nick,
+        username: user.username,
         name: user.name,
-        email: user.email, // Use email from database
+        email: user.email,
         role: frontendRole,
-        allowedSectors: permissions.allowedSectors || [],
-        isActive: true, // Active column doesn't exist, assume true
+        allowedSectors: [],
+        isActive: Boolean(user.is_active),
         sector_name: user.sector_name,
         created_at: user.created_at
       }
@@ -61,10 +55,10 @@ router.get("/:id", async (req, res) => {
 
     const users = await query(
       `
-      SELECT u.id, u.nick, u.name, u.profile, u.sector_id, u.permissions, u.created_at,
-             s.nome as sector_name
+      SELECT u.id, u.username, u.full_name as name, u.role, u.sector_id, u.created_at, u.is_active, u.is_admin,
+             s.name as sector_name
       FROM users u
-      LEFT JOIN setores s ON u.sector_id = s.id
+      LEFT JOIN sectors s ON u.sector_id = s.id
       WHERE u.id = ?
     `,
       [id],
@@ -75,7 +69,6 @@ router.get("/:id", async (req, res) => {
     }
 
     const user = users[0]
-    user.permissions = JSON.parse(user.permissions || "{}")
 
     res.json(user)
   } catch (error) {
@@ -88,61 +81,45 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     // Map frontend fields to database fields
-    const { username, nick, password, name, email, role, allowedSectors, sector_id, permissions } = req.body
+    const { username, password, name, email, role, allowedSectors, sector_id, permissions } = req.body
     
-    // Use username if nick is not provided (for compatibility with frontend)
-    const userNick = nick || username
-    
-    if (!userNick || !password || !name) {
+    if (!username || !password || !name) {
       return res.status(400).json({ error: "Username, senha e nome são obrigatórios" })
     }
 
-    // Check if nick already exists
-    const existingUser = await query("SELECT id FROM users WHERE nick = ?", [userNick])
+    // Check if username already exists
+    const existingUser = await query("SELECT id FROM users WHERE username = ?", [username])
     if (existingUser.length > 0) {
       return res.status(400).json({ error: "Username já está em uso" })
     }
 
-    // Note: Email column doesn't exist in database
-    // if (email) {
-    //   const existingEmail = await query("SELECT id FROM users WHERE email = ?", [email])
-    //   if (existingEmail.length > 0) {
-    //     return res.status(400).json({ error: "Email já está em uso" })
-    //   }
-    // }
+    // Check if email already exists
+    if (email) {
+      const existingEmail = await query("SELECT id FROM users WHERE email = ?", [email])
+      if (existingEmail.length > 0) {
+        return res.status(400).json({ error: "Email já está em uso" })
+      }
+    }
 
     const hashedPassword = await hashPassword(password)
     
-    // Map role from frontend format to database profile format
-    const dbProfile = {
-      'ADMIN': 'admin',
-      'GESTOR': 'gestor',
-      'TECNICO': 'usuario',
-      'TECHNICIAN': 'usuario',
-      'USUARIO': 'usuario'
-    }[role] || 'usuario'
-    
-    // Create permissions object from allowedSectors
-    const userPermissions = {
-      allowedSectors: allowedSectors || [],
-      ...permissions
-    }
-    const permissionsJson = JSON.stringify(userPermissions)
+    // Determine if user is admin
+    const isAdmin = role === 'ADMIN' ? 1 : 0
 
     const result = await query(
       `
-      INSERT INTO users (nick, password, name, profile, sector_id, permissions)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO users (username, password, full_name, email, role, is_admin, sector_id, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      [userNick, hashedPassword, name, dbProfile, sector_id || null, permissionsJson],
+      [username, hashedPassword, name, email || null, role, isAdmin, sector_id || null, 1],
     )
 
     // Return user data in frontend format
     const newUser = {
       id: result.insertId,
-      username: userNick,
+      username: username,
       name,
-      email: null, // Email column doesn't exist
+      email: email || null,
       role: role,
       allowedSectors: allowedSectors || [],
       isActive: true
@@ -167,47 +144,35 @@ router.put("/:id", async (req, res) => {
     const updateValues = []
 
     if (name) {
-      updateFields.push("name = ?")
+      updateFields.push("full_name = ?")
       updateValues.push(name)
     }
 
-    // Note: Email column doesn't exist in database
-    // if (email !== undefined) {
-    //   updateFields.push("email = ?")
-    //   updateValues.push(email)
-    // }
-
-    // Allow all updates without authentication checks
-    if (role) {
-      // Map frontend role to database profile
-      const dbProfile = {
-        'ADMIN': 'admin',
-        'GESTOR': 'gestor',
-        'TECNICO': 'usuario',
-        'USUARIO': 'usuario'
-      }[role] || 'usuario'
-      
-      updateFields.push("profile = ?")
-      updateValues.push(dbProfile)
+    if (email !== undefined) {
+      updateFields.push("email = ?")
+      updateValues.push(email)
     }
+
+    if (role) {
+      updateFields.push("role = ?")
+      updateValues.push(role)
+      
+      // Update is_admin based on role
+      const isAdmin = role === 'ADMIN' ? 1 : 0
+      updateFields.push("is_admin = ?")
+      updateValues.push(isAdmin)
+    }
+    
     if (sector_id) {
       updateFields.push("sector_id = ?")
       updateValues.push(sector_id)
     }
-    if (allowedSectors || permissions) {
-      const userPermissions = {
-        allowedSectors: allowedSectors || [],
-        ...permissions
-      }
-      updateFields.push("permissions = ?")
-      updateValues.push(JSON.stringify(userPermissions))
+    
+    const activeStatus = isActive !== undefined ? isActive : is_active
+    if (typeof activeStatus === "boolean") {
+      updateFields.push("is_active = ?")
+      updateValues.push(activeStatus)
     }
-    // Note: Active column doesn't exist in database
-    // const activeStatus = isActive !== undefined ? isActive : is_active
-    // if (typeof activeStatus === "boolean") {
-    //   updateFields.push("active = ?")
-    //   updateValues.push(activeStatus)
-    // }
 
     if (password) {
       const hashedPassword = await hashPassword(password)
@@ -233,9 +198,9 @@ router.put("/:id", async (req, res) => {
     // Get updated user data
     const updatedUsers = await query(
       `SELECT u.id, u.nick, u.name, u.profile, u.sector_id, u.permissions, u.created_at,
-              s.nome as sector_name
+              s.name as sector_name
        FROM users u
-       LEFT JOIN setores s ON u.sector_id = s.id
+       LEFT JOIN sectors s ON u.sector_id = s.id
        WHERE u.id = ?`,
       [id]
     )

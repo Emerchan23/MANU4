@@ -58,9 +58,10 @@ export function CompanyCard({ company, onDelete }: CompanyCardProps) {
   };
 
   const specialtiesArray = company.specialties
-    .split(',')
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
+    ? company.specialties.split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+    : [];
 
   return (
     <Card className="w-full hover:shadow-md transition-shadow">

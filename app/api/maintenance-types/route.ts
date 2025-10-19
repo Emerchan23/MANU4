@@ -195,8 +195,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  let connection;
   try {
+    console.log('🔄 PUT /api/maintenance-types - Request received');
     const body = await request.json();
+    console.log('📊 Request body:', body);
+    
     const { id, name, isActive } = body;
     
     if (!id || !name) {
@@ -206,16 +210,17 @@ export async function PUT(request: NextRequest) {
       )
     }
     
-    const connection = await mysql.createConnection(dbConfig)
+    connection = await mysql.createConnection(dbConfig)
+    console.log('✅ Database connection established');
     
     // Verificar se o tipo existe
     const [existing] = await connection.execute(
       'SELECT id FROM tipos_manutencao WHERE id = ?',
       [id]
     )
+    console.log('🔍 Existing record check:', existing);
     
     if (!Array.isArray(existing) || existing.length === 0) {
-      await connection.end()
       return NextResponse.json(
         { error: 'Tipo de manutenção não encontrado' },
         { status: 404 }
@@ -223,12 +228,11 @@ export async function PUT(request: NextRequest) {
     }
     
     // Atualizar tipo de manutenção (apenas nome e ativo)
-    await connection.execute(
+    const [updateResult] = await connection.execute(
       'UPDATE tipos_manutencao SET nome = ?, ativo = ?, atualizado_em = NOW() WHERE id = ?',
       [name, isActive, id]
     );
-    
-    await connection.end()
+    console.log('✅ Update result:', updateResult);
     
     return NextResponse.json({
       id,
@@ -236,12 +240,17 @@ export async function PUT(request: NextRequest) {
       isActive,
       message: 'Tipo de manutenção atualizado com sucesso'
     });
+    
   } catch (error) {
-    console.error('Erro ao atualizar tipo de manutenção:', error)
+    console.error('❌ Erro ao atualizar tipo de manutenção:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
 }
 

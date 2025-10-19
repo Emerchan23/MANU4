@@ -29,8 +29,10 @@ nextApp.prepare().then(async () => {
 
   // Middleware
   app.use(cors({
-    origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : 'http://localhost:3000',
-    credentials: true
+    origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   }))
   
   app.use(cookieParser())
@@ -72,30 +74,33 @@ nextApp.prepare().then(async () => {
   // Removido: const serviceOrdersRouter = await import('./api/service-orders.js')
   const notificationsRouter = await import('./api/notifications.js')
   const notificationSettingsRouter = await import('./api/routes/notification-settings.js')
-  const dashboardRouter = await import('./api/dashboard.js')
-  const reportsRouter = await import('./api/reports.js')
+  // Removido: const dashboardRouter = await import('./api/dashboard.js')
+  // Removido: const reportsRouter = await import('./api/reports.js')
   const sessionsRouter = await import('./api/sessions.js')
   const userSettingsRouter = await import('./api/user-settings.js')
   const userPreferencesRouter = await import('./api/user-preferences.js')
   const systemSettingsRouter = await import('./api/system-settings.js')
   const specialtiesRouter = await import('./api/specialties.js')
+  const agendamentosRouter = await import('./api/agendamentos.js')
 
   // Apply JSON middleware and mount API routes
-  app.use('/api/users', express.json({ limit: '10mb' }), usersRouter.default)
-  app.use('/api/sectors', express.json({ limit: '10mb' }), sectorsRouter.default)
+  app.use(express.json({ limit: '10mb' }))
+  app.use('/api/users', usersRouter.default)
+  app.use('/api/sectors', sectorsRouter.default)
   // Removido: app.use('/api/companies', express.json({ limit: '10mb' }), companiesRouter.default)
-  app.use('/api/categories', express.json({ limit: '10mb' }), categoriesRouter.default)
-  app.use('/api/equipment', express.json({ limit: '10mb' }), equipmentRouter.default)
+  app.use('/api/categories', categoriesRouter.default)
+  app.use('/api/equipment', equipmentRouter.default)
   // Removido: app.use('/api/service-orders', express.json({ limit: '10mb' }), serviceOrdersRouter.default)
-  app.use('/api/notifications', express.json({ limit: '10mb' }), notificationsRouter.default)
-  app.use('/api/notification-settings', express.json({ limit: '10mb' }), notificationSettingsRouter.default)
-  app.use('/api/dashboard', express.json({ limit: '10mb' }), dashboardRouter.default)
-  // app.use('/api/reports', express.json({ limit: '10mb' }), reportsRouter.default) // Comentado para usar Next.js API routes
-  app.use('/api/sessions', express.json({ limit: '10mb' }), sessionsRouter.default)
-  app.use('/api/user-settings', express.json({ limit: '10mb' }), userSettingsRouter.default)
-  app.use('/api/user-preferences', express.json({ limit: '10mb' }), userPreferencesRouter.default)
-  app.use('/api/system-settings', express.json({ limit: '10mb' }), systemSettingsRouter.default)
-  app.use('/api/specialties', express.json({ limit: '10mb' }), specialtiesRouter.default)
+  app.use('/api/notifications', notificationsRouter.default)
+  app.use('/api/notification-settings', notificationSettingsRouter.default)
+  // Removido: app.use('/api/dashboard', express.json({ limit: '10mb' }), dashboardRouter.default)
+  // Removido: app.use('/api/reports', express.json({ limit: '10mb' }), reportsRouter.default)
+  app.use('/api/sessions', sessionsRouter.default)
+  app.use('/api/user-settings', userSettingsRouter.default)
+  app.use('/api/user-preferences', userPreferencesRouter.default)
+  app.use('/api/system-settings', systemSettingsRouter.default)
+  app.use('/api/specialties', specialtiesRouter.default)
+  app.use('/api/agendamentos', agendamentosRouter.default)
 
   // Health check endpoint (without JSON middleware since it doesn't need it)
   app.get("/api/health", (req, res) => {

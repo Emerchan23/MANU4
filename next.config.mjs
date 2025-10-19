@@ -12,6 +12,15 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['mysql2'],
   },
+  // Configurações para resolver problemas de timeout em requisições PUT
+  serverRuntimeConfig: {
+    // Aumentar timeout para requisições do servidor
+    requestTimeout: 30000, // 30 segundos
+  },
+  // Configurações para o cliente
+  publicRuntimeConfig: {
+    // Configurações públicas se necessário
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Exclude Node.js modules from client bundle

@@ -120,18 +120,24 @@ export function MaintenanceTypes() {
       const apiData = convertFrontendToApi(formData);
       
       if (editingType) {
-        // Update existing type
-        const response = await fetch('/api/maintenance-types', {
+        // Update existing type - usar rota alternativa update/[id]
+        const response = await fetch(`/api/maintenance-types/update/${editingType.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ id: parseInt(editingType.id), ...apiData }),
+          body: JSON.stringify(apiData),
         });
         
         if (response.ok) {
-          const result: ApiMaintenanceType = await response.json();
-          const updatedType = convertApiToFrontend(result);
+          const result = await response.json();
+          const updatedType = convertApiToFrontend({
+            id: result.id,
+            name: result.name,
+            isActive: result.isActive,
+            category: 'preventiva', // valor padrão
+            description: ''
+          });
           setMaintenanceTypes((prev) =>
             prev.map((type) => (type.id === editingType.id ? updatedType : type))
           );
@@ -162,7 +168,7 @@ export function MaintenanceTypes() {
       }
       
       // Reset form
-      setFormData({ name: "", description: "", category: "" as MaintenanceType["category"], isActive: true });
+      setFormData({ name: "", isActive: true });
       setEditingType(null);
       setShowForm(false);
     } catch (error) {
@@ -206,12 +212,12 @@ export function MaintenanceTypes() {
       if (!currentType) return;
       
       const updatedData = {
-        id: parseInt(id),
         name: currentType.name,
         isActive: !currentType.isActive,
       };
       
-      const response = await fetch('/api/maintenance-types', {
+      // Usar rota alternativa update/[id] para toggle
+      const response = await fetch(`/api/maintenance-types/update/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -220,8 +226,14 @@ export function MaintenanceTypes() {
       });
       
       if (response.ok) {
-        const result: ApiMaintenanceType = await response.json();
-        const updatedType = convertApiToFrontend(result);
+        const result = await response.json();
+        const updatedType = convertApiToFrontend({
+          id: result.id,
+          name: result.name,
+          isActive: result.isActive,
+          category: currentType.category,
+          description: currentType.description
+        });
         setMaintenanceTypes((prev) =>
           prev.map((type) => (type.id === id ? updatedType : type))
         );

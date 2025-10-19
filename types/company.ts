@@ -16,7 +16,7 @@ export const CompanySchema = z.object({
     .email("E-mail deve ser válido")
     .max(255, "E-mail muito longo"),
   address: z.string().min(1, "Endereço é obrigatório"),
-  specialties: z.string().min(1, "Especialidades são obrigatórias"),
+  specialties: z.string().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });
@@ -28,12 +28,11 @@ export const CreateCompanySchema = CompanySchema.omit({
   updated_at: true 
 });
 
-// Schema para atualização (ID obrigatório)
+// Schema para atualização (sem ID, será passado na URL)
 export const UpdateCompanySchema = CompanySchema.omit({ 
+  id: true,
   created_at: true, 
   updated_at: true 
-}).extend({
-  id: z.number().min(1, "ID é obrigatório para atualização")
 });
 
 // Tipos TypeScript derivados dos schemas

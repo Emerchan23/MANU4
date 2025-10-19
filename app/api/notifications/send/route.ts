@@ -232,7 +232,7 @@ function getNotificationUrl(type: string, relatedId?: number): string {
     case 'service_order_update':
       return relatedId ? `/ordens-servico/${relatedId}` : '/ordens-servico';
     case 'system_alert':
-      return '/dashboard';
+      return '/equipamentos';
     default:
       return '/notificacoes';
   }

@@ -9,12 +9,6 @@ export interface NavigationItem {
 export const getFilteredNavigation = (userRole: string, permissions: any) => {
   const allNavigation: NavigationItem[] = [
     {
-      name: "Dashboard",
-      href: "/",
-      icon: "HomeIcon",
-      // Dashboard is accessible to all authenticated users
-    },
-    {
       name: "Equipamentos",
       href: "/equipamentos",
       icon: "WrenchScrewdriverIcon",
@@ -41,9 +35,8 @@ export const getFilteredNavigation = (userRole: string, permissions: any) => {
     {
       name: "Relatórios",
       href: "/relatorios",
-      icon: "ChartBarIcon",
-      requiredRoles: ["admin", "gestor"],
-      requiredPermissions: ["relatorios"],
+      icon: "DocumentChartBarIcon",
+      requiredRoles: ["admin", "gestor", "tecnico"],
     },
     {
       name: "Configurações",

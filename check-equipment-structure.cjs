@@ -15,44 +15,44 @@ async function checkEquipmentStructure() {
         const [tables] = await connection.execute(`
             SELECT TABLE_NAME 
             FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = 'hospital_maintenance' 
-            AND TABLE_NAME = 'equipment'
+            WHERE TABLE_SCHEMA = 'hospital_maintenance' AND TABLE_NAME = 'equipment'
         `);
 
         if (tables.length === 0) {
-            console.log('❌ Tabela equipment não existe');
+            console.log('❌ Tabela equipment não existe!');
             return;
         }
 
-        // Verificar estrutura da tabela
-        const [columns] = await connection.execute(`
-            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-            FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'hospital_maintenance' 
-            AND TABLE_NAME = 'equipment'
-            ORDER BY ORDINAL_POSITION
-        `);
-
-        console.log('📋 Estrutura da tabela equipment:');
+        // Obter estrutura da tabela
+        const [columns] = await connection.execute('DESCRIBE equipment');
+        
+        console.log('\n📋 ESTRUTURA DA TABELA equipment:');
+        console.log('=' .repeat(80));
         columns.forEach(col => {
-            console.log(`  - ${col.COLUMN_NAME}: ${col.DATA_TYPE} (${col.IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL'})`);
+            console.log(`  ${col.Field.padEnd(25)} | ${col.Type.padEnd(30)} | ${col.Null} | ${col.Key} | ${col.Default}`);
         });
 
-        // Verificar dados existentes
-        const [data] = await connection.execute('SELECT * FROM equipment LIMIT 5');
-        console.log(`\n📊 Registros encontrados: ${data.length}`);
-        if (data.length > 0) {
-            console.log('Primeiros registros:');
-            data.forEach((row, index) => {
-                console.log(`  ${index + 1}:`, row);
-            });
-        }
+        // Verificar se há campo company_id
+        const hasCompanyId = columns.find(col => col.Field === 'company_id');
+        console.log('\n🔍 Campo company_id na tabela equipment:', hasCompanyId ? '✅ Existe' : '❌ Não existe');
+
+        // Verificar alguns dados de exemplo
+        console.log('\n📊 Dados de exemplo da tabela equipment:');
+        const [equipmentData] = await connection.execute(`
+            SELECT id, name, code, sector_id, status 
+            FROM equipment 
+            LIMIT 5
+        `);
+        
+        equipmentData.forEach(eq => {
+            console.log(`  ID: ${eq.id} | Nome: ${eq.name} | Código: ${eq.code} | Setor: ${eq.sector_id} | Status: ${eq.status}`);
+        });
 
     } catch (error) {
-        console.error('❌ Erro:', error.message);
+        console.error('❌ Erro ao verificar estrutura:', error.message);
     } finally {
         await connection.end();
     }
 }
 
-checkEquipmentStructure().catch(console.error);
+checkEquipmentStructure();

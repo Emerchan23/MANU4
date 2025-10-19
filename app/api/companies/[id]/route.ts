@@ -4,11 +4,12 @@ import { UpdateCompanySchema } from '@/types/company';
 
 // Configuração do banco de dados
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'hospital_maintenance',
-  port: parseInt(process.env.DB_PORT || '3306'),
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'hospital_maintenance',
+  charset: 'utf8mb4',
+  timezone: '+00:00'
 };
 
 // GET - Buscar empresa por ID
@@ -61,9 +62,12 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const id = parseInt(params.id);
+  let connection: mysql.Connection | null = null;
 
+  try {
+    console.log('🔄 PUT /api/companies/[id] - Iniciando...');
+    
+    const id = parseInt(params.id);
     if (isNaN(id)) {
       return NextResponse.json(
         { success: false, message: 'ID inválido' },
@@ -72,74 +76,79 @@ export async function PUT(
     }
 
     const body = await request.json();
-    
-    // Validar dados com Zod
-    const validatedData = UpdateCompanySchema.parse({ ...body, id });
+    const validatedData = UpdateCompanySchema.parse(body);
 
-    const connection = await mysql.createConnection(dbConfig);
+    // Conectar ao banco
+    connection = await mysql.createConnection(dbConfig);
 
     // Verificar se empresa existe
-    const [existingCompany] = await connection.execute(
+    const [existingRows] = await connection.execute(
       'SELECT id FROM companies WHERE id = ?',
       [id]
-    ) as any;
+    );
 
-    if (existingCompany.length === 0) {
-      await connection.end();
+    const existingCompanies = existingRows as any[];
+    if (existingCompanies.length === 0) {
       return NextResponse.json(
         { success: false, message: 'Empresa não encontrada' },
         { status: 404 }
       );
     }
 
-    // Verificar se CNPJ já existe em outra empresa
-    const [cnpjCheck] = await connection.execute(
-      'SELECT id FROM companies WHERE cnpj = ? AND id != ?',
-      [validatedData.cnpj, id]
-    ) as any;
-
-    if (cnpjCheck.length > 0) {
-      await connection.end();
-      return NextResponse.json(
-        { success: false, message: 'CNPJ já cadastrado em outra empresa' },
-        { status: 400 }
+    // Verificar CNPJ duplicado (se fornecido)
+    if (validatedData.cnpj) {
+      const [cnpjRows] = await connection.execute(
+        'SELECT id FROM companies WHERE cnpj = ? AND id != ?',
+        [validatedData.cnpj, id]
       );
+
+      const cnpjCompanies = cnpjRows as any[];
+      if (cnpjCompanies.length > 0) {
+        return NextResponse.json(
+          { success: false, message: 'CNPJ já está em uso por outra empresa' },
+          { status: 400 }
+        );
+      }
     }
 
     // Atualizar empresa
     await connection.execute(
       `UPDATE companies SET 
-       name = ?, cnpj = ?, contact_person = ?, phone = ?, 
-       email = ?, address = ?, specialties = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+        name = ?, 
+        cnpj = ?, 
+        address = ?, 
+        phone = ?, 
+        email = ?, 
+        contact_person = ?, 
+        updated_at = NOW() 
+      WHERE id = ?`,
       [
         validatedData.name,
         validatedData.cnpj,
-        validatedData.contact_person,
+        validatedData.address,
         validatedData.phone,
         validatedData.email,
-        validatedData.address,
-        validatedData.specialties,
-        id,
+        validatedData.contact_person,
+        id
       ]
     );
 
     // Buscar empresa atualizada
-    const [updatedCompany] = await connection.execute(
+    const [updatedRows] = await connection.execute(
       'SELECT * FROM companies WHERE id = ?',
       [id]
-    ) as any;
+    );
 
-    await connection.end();
+    const updatedCompanies = updatedRows as any[];
 
     return NextResponse.json({
       success: true,
-      company: updatedCompany[0],
       message: 'Empresa atualizada com sucesso',
+      company: updatedCompanies[0]
     });
 
   } catch (error: any) {
-    console.error('Erro ao atualizar empresa:', error);
+    console.error('❌ Erro no PUT:', error);
     
     if (error.name === 'ZodError') {
       return NextResponse.json(
@@ -149,9 +158,13 @@ export async function PUT(
     }
 
     return NextResponse.json(
-      { success: false, message: 'Erro interno do servidor' },
+      { success: false, message: 'Erro interno do servidor', error: error.message },
       { status: 500 }
     );
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
 }
 

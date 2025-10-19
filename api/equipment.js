@@ -10,31 +10,27 @@ const getEquipments = async (req, res) => {
       SELECT 
         e.id,
         e.name,
-        e.patrimonio,
         e.model,
         e.serial_number,
         e.manufacturer,
         e.sector_id,
         e.category_id,
         e.subsector_id,
-        e.installation_date,
-        e.last_preventive_maintenance,
-        e.next_preventive_maintenance,
-        e.maintenance_frequency_days,
+        e.acquisition_date,
+        e.last_maintenance,
+        e.next_maintenance,
         e.warranty_expiry,
         e.status,
         e.observations,
         e.created_at,
         e.updated_at,
-        e.patrimonio_number,
-        e.voltage,
-        e.power,
-        e.maintenance_frequency,
-        s.nome as sector_name,
+        e.location,
+        e.is_active,
+        s.name as sector_name,
         c.name as category_name,
         sub.name as subsector_name
       FROM equipment e
-      LEFT JOIN setores s ON e.sector_id = s.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subsectors sub ON e.subsector_id = sub.id
       ORDER BY e.created_at DESC
@@ -48,26 +44,22 @@ const getEquipments = async (req, res) => {
     const transformedData = rows.map(equipment => ({
       id: equipment.id,
       name: equipment.name,
-      patrimonio: equipment.patrimonio,
       model: equipment.model,
       serial_number: equipment.serial_number,
       manufacturer: equipment.manufacturer,
       sector_id: equipment.sector_id,
       category_id: equipment.category_id,
       subsector_id: equipment.subsector_id,
-      installation_date: equipment.installation_date,
-      last_preventive_maintenance: equipment.last_preventive_maintenance,
-      next_preventive_maintenance: equipment.next_preventive_maintenance,
-      maintenance_frequency_days: equipment.maintenance_frequency_days,
+      acquisition_date: equipment.acquisition_date,
+      last_maintenance: equipment.last_maintenance,
+      next_maintenance: equipment.next_maintenance,
       warranty_expiry: equipment.warranty_expiry,
       status: equipment.status,
       observations: equipment.observations,
       created_at: equipment.created_at,
       updated_at: equipment.updated_at,
-      patrimonio_number: equipment.patrimonio_number,
-      voltage: equipment.voltage,
-      power: equipment.power,
-      maintenance_frequency: equipment.maintenance_frequency,
+      location: equipment.location,
+      is_active: equipment.is_active,
       // Campos relacionados (joins)
       sector_name: equipment.sector_name,
       category_name: equipment.category_name,
@@ -97,11 +89,11 @@ const getEquipmentById = async (req, res) => {
     const queryStr = `
       SELECT 
         e.*,
-        s.nome as sector_name,
+        s.name as sector_name,
         c.name as category_name,
         sub.name as subsector_name
       FROM equipment e
-      LEFT JOIN setores s ON e.sector_id = s.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subsectors sub ON e.subsector_id = sub.id
       WHERE e.id = ?

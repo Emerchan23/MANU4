@@ -62,19 +62,6 @@
   ],
   "shortcuts": [
     {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "Acessar dashboard principal",
-      "url": "/dashboard",
-      "icons": [
-        {
-          "src": "/icon-dashboard-96x96.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
       "name": "Equipamentos",
       "short_name": "Equipamentos",
       "description": "Gerenciar equipamentos",
@@ -120,7 +107,7 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Dashboard principal do sistema"
+      "label": "Sistema de manutenção hospitalar"
     },
     {
       "src": "/screenshot-narrow.png",

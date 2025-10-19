@@ -13,6 +13,7 @@ import {
   CalendarIcon,
   ExclamationTriangleIcon,
   BellIcon,
+  DocumentChartBarIcon,
 } from "@heroicons/react/24/outline"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -30,6 +31,7 @@ const iconMap = {
   CalendarIcon,
   ExclamationTriangleIcon,
   BellIcon,
+  DocumentChartBarIcon,
 }
 
 interface SidebarProps {

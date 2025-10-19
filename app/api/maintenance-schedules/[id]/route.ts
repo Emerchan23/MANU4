@@ -24,32 +24,34 @@ export async function GET(
     // Conectar ao MariaDB
     connection = await mysql.createConnection(dbConfig);
 
-    // Get maintenance schedule with joined data
-    const scheduleQuery = `
-      SELECT 
-        ms.*,
-        e.name as equipment_name,
-        e.patrimonio as equipment_code,
-        e.model as equipment_model,
-        e.sector_id,
-        c.name as company_name,
-        u.name as assigned_user_name
-      FROM maintenance_schedules ms
-      LEFT JOIN equipment e ON ms.equipment_id = e.id
-      LEFT JOIN empresas c ON ms.company_id = c.id
-      LEFT JOIN users u ON ms.assigned_user_id = u.id
-      WHERE ms.id = ?
-    `
+    // First, let's check if the schedule exists in the maintenance_schedules table
+    const checkQuery = `SELECT * FROM maintenance_schedules WHERE id = ?`
+    const [checkResult] = await connection.execute(checkQuery, [id])
 
-    const [scheduleResult] = await connection.execute(scheduleQuery, [id])
-
-    if (scheduleResult.length === 0) {
+    if (checkResult.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Agendamento de manutenção não encontrado' },
         { status: 404 }
       )
     }
 
+    // Get maintenance schedule - simplified query first
+    const scheduleQuery = `
+      SELECT 
+        ms.*
+      FROM maintenance_schedules ms
+      WHERE ms.id = ?
+    `
+
+    const [scheduleResult] = await connection.execute(scheduleQuery, [id])
+    
+    if (scheduleResult.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Agendamento não encontrado após JOIN' },
+        { status: 404 }
+      )
+    }
+    
     const scheduleData = scheduleResult[0]
 
     console.log('✅ Agendamento encontrado:', scheduleData.id);
@@ -61,6 +63,7 @@ export async function GET(
 
   } catch (error) {
     console.error('❌ Erro ao buscar agendamento:', error)
+    console.error('❌ Stack trace:', error.stack)
     return NextResponse.json(
       { success: false, error: 'Erro interno do servidor ao buscar agendamento' },
       { status: 500 }

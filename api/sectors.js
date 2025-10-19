@@ -7,10 +7,9 @@ const router = express.Router()
 router.get('/', async (req, res) => {
   try {
     const sql = `
-      SELECT s.id, s.nome as name, s.descricao as description, s.responsavel as manager_id
-      FROM setores s
-      WHERE s.ativo = 1
-      ORDER BY s.nome
+      SELECT s.id, s.name, s.description, s.manager_id
+      FROM sectors s
+      ORDER BY s.name
     `
     
     const sectors = await query(sql)
@@ -34,8 +33,8 @@ router.post('/', async (req, res) => {
     const managerValue = responsible || manager_id
     
     const insertQuery = `
-      INSERT INTO setores (nome, descricao, responsavel, ativo)
-      VALUES (?, ?, ?, 1)
+      INSERT INTO sectors (name, description, manager_id)
+      VALUES (?, ?, ?)
     `
     
     const result = await query(insertQuery, [
@@ -72,8 +71,8 @@ router.put('/', async (req, res) => {
     const managerValue = responsible || manager_id
     
     const updateQuery = `
-      UPDATE setores 
-      SET nome = ?, descricao = ?, responsavel = ?, atualizado_em = NOW()
+      UPDATE sectors 
+      SET name = ?, description = ?, manager_id = ?
       WHERE id = ?
     `
     
@@ -119,7 +118,7 @@ router.delete('/', async (req, res) => {
     
     // Verificar se há subsetores associados
     const subsectorsCheck = await query(
-      'SELECT COUNT(*) as count FROM subsetores WHERE setor_id = ?',
+      'SELECT COUNT(*) as count FROM subsectors WHERE sector_id = ?',
       [id]
     )
     
@@ -129,7 +128,7 @@ router.delete('/', async (req, res) => {
       })
     }
     
-    const deleteQuery = 'DELETE FROM setores WHERE id = ?'
+    const deleteQuery = 'DELETE FROM sectors WHERE id = ?'
     const result = await query(deleteQuery, [id])
     
     if (result.affectedRows === 0) {

@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
     const params = []
     
     if (sector_id) {
-      sql += ' AND s.sector_id = ?'
+      sql += ' WHERE s.sector_id = ?'
       params.push(sector_id)
     }
     
@@ -93,7 +93,7 @@ router.delete('/', async (req, res) => {
       return res.status(400).json({ error: 'ID do subsetor é obrigatório' })
     }
     
-    const result = await query('DELETE FROM subsetores WHERE id = ?', [id])
+    const result = await query('DELETE FROM subsectors WHERE id = ?', [id])
     
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Subsetor não encontrado' })
