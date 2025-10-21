@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getConnection } from '@/lib/database'
+import mysql from 'mysql2/promise'
 
 export async function GET(
   request: NextRequest,
@@ -15,10 +15,18 @@ export async function GET(
       )
     }
 
-    const connection = await getConnection()
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: parseInt(process.env.DB_PORT || '3306')
+    })
     
     // Buscar estatísticas do equipamento (com tratamento de erro)
     try {
+      console.log(`🔍 [STATS API] Buscando estatísticas para equipamento ${equipmentId}`)
+      
       const [statsRows] = await connection.execute(`
         SELECT 
           COUNT(*) as total_maintenances,
@@ -32,6 +40,8 @@ export async function GET(
         WHERE equipment_id = ?
       `, [equipmentId])
 
+      console.log(`📊 [STATS API] Resultado da query:`, statsRows[0])
+
       await connection.end()
 
       const stats = statsRows[0] || {
@@ -41,12 +51,15 @@ export async function GET(
         success_rate: 0
       }
 
-      return NextResponse.json({
+      const response = {
         totalMaintenances: parseInt(stats.total_maintenances) || 0,
         totalCost: parseFloat(stats.total_cost) || 0,
         averageRepairTime: Math.round(parseFloat(stats.average_repair_time) || 0),
         successRate: parseFloat(stats.success_rate) || 0
-      })
+      }
+
+      console.log(`✅ [STATS API] Resposta final:`, response)
+      return NextResponse.json(response)
     } catch (queryError) {
       console.error('Erro na query de estatísticas:', queryError)
       await connection.end()

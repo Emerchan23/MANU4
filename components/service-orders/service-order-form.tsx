@@ -52,6 +52,7 @@ export default function ServiceOrderForm({ onSave, onCancel }: ServiceOrderFormP
     equipmentId: '',
     sectorName: '', // Campo informativo
     subsectorName: '', // Campo informativo
+    voltage: '', // Campo informativo
     maintenanceType: '',
     description: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
@@ -71,7 +72,7 @@ export default function ServiceOrderForm({ onSave, onCancel }: ServiceOrderFormP
     loadUsers()
   }, [])
 
-  // Atualizar setor e subsetor quando equipamento for selecionado
+  // Atualizar setor, subsetor e voltagem quando equipamento for selecionado
   useEffect(() => {
     if (formData.equipmentId) {
       const selectedEquipment = equipment.find(eq => eq.id === parseInt(formData.equipmentId))
@@ -79,14 +80,16 @@ export default function ServiceOrderForm({ onSave, onCancel }: ServiceOrderFormP
         setFormData(prev => ({
           ...prev,
           sectorName: selectedEquipment.sector_name || '',
-          subsectorName: selectedEquipment.subsector_name || ''
+          subsectorName: selectedEquipment.subsector_name || '',
+          voltage: selectedEquipment.voltage || ''
         }))
       }
     } else {
       setFormData(prev => ({
         ...prev,
         sectorName: '',
-        subsectorName: ''
+        subsectorName: '',
+        voltage: ''
       }))
     }
   }, [formData.equipmentId, equipment])
@@ -312,24 +315,25 @@ export default function ServiceOrderForm({ onSave, onCancel }: ServiceOrderFormP
               />
             </div>
 
-            {/* Campo Equipamento e campos informativos de Setor/Subsetor */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-1">
-                <Label htmlFor="equipment">Equipamento *</Label>
-                <Combobox
-                  value={formData.equipmentId}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, equipmentId: value }))}
-                  options={equipment?.map((eq) => ({
-                    value: eq.id.toString(),
-                    label: `${eq.name}${eq.patrimonio_number ? ` - ${eq.patrimonio_number}` : ''}`
-                  })) || []}
-                  placeholder="Selecione o equipamento"
-                  searchPlaceholder="Buscar por nome ou patrimônio..."
-                  emptyText="Nenhum equipamento encontrado"
-                  allowCustomValue={false}
-                />
-              </div>
+            {/* Campo Equipamento */}
+            <div>
+              <Label htmlFor="equipment">Equipamento *</Label>
+              <Combobox
+                value={formData.equipmentId}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, equipmentId: value }))}
+                options={equipment?.map((eq) => ({
+                  value: eq.id.toString(),
+                  label: `${eq.name}${eq.patrimonio_number ? ` - ${eq.patrimonio_number}` : ''}`
+                })) || []}
+                placeholder="Selecione o equipamento"
+                searchPlaceholder="Buscar por nome ou patrimônio..."
+                emptyText="Nenhum equipamento encontrado"
+                allowCustomValue={false}
+              />
+            </div>
 
+            {/* Campos informativos de Setor, Subsetor e Voltagem */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="sector">Setor</Label>
                 <Input
@@ -346,6 +350,17 @@ export default function ServiceOrderForm({ onSave, onCancel }: ServiceOrderFormP
                 <Input
                   id="subsector"
                   value={formData.subsectorName}
+                  disabled
+                  placeholder="Será preenchido automaticamente"
+                  className="bg-muted"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="voltage">Voltagem</Label>
+                <Input
+                  id="voltage"
+                  value={formData.voltage}
                   disabled
                   placeholder="Será preenchido automaticamente"
                   className="bg-muted"

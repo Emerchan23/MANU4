@@ -9,6 +9,12 @@ export interface NavigationItem {
 export const getFilteredNavigation = (userRole: string, permissions: any) => {
   const allNavigation: NavigationItem[] = [
     {
+      name: "Dashboard",
+      href: "/",
+      icon: "HomeIcon",
+      requiredRoles: ["admin", "gestor", "tecnico"],
+    },
+    {
       name: "Equipamentos",
       href: "/equipamentos",
       icon: "WrenchScrewdriverIcon",

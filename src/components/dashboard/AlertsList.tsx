@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Alert } from '@/hooks/useAlerts';
 
 interface AlertsListProps {
@@ -19,6 +20,7 @@ const priorityLabels = {
 };
 
 export function AlertsList({ alerts, loading = false }: AlertsListProps) {
+  const router = useRouter();
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -107,7 +109,10 @@ export function AlertsList({ alerts, loading = false }: AlertsListProps) {
       
       {alerts.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+          <button 
+            onClick={() => router.push('/alertas')}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
             Ver todos os alertas →
           </button>
         </div>

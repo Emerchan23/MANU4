@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 import pool from '@/lib/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { formatDateTimeBR } from '@/lib/date-utils';
@@ -16,10 +15,7 @@ function formatWheelData(wheel: any) {
 // GET - Retrieve wheel states
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(request);
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
+    // Sistema de autenticação simplificado removido
 
     const { searchParams } = new URL(request.url);
     const wheelId = searchParams.get('id');

@@ -20,7 +20,8 @@ import {
   CheckCircle,
   XCircle,
   Edit,
-  Download
+  Download,
+  FileDown
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -242,9 +243,13 @@ export default function ServiceOrderDetailsPage() {
               <Edit className="h-4 w-4 mr-2" />
               Editar
             </Button>
-            <Button variant="outline" onClick={handleGeneratePDF}>
-              <Download className="h-4 w-4 mr-2" />
-              PDF
+            <Button 
+              variant="default" 
+              onClick={handleGeneratePDF}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-6 py-2.5"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Baixar Relatório PDF
             </Button>
           </div>
         </div>

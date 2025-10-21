@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { CalendarEvent } from '@/hooks/useCalendarEvents';
 
 interface CalendarWidgetProps {
@@ -20,6 +21,8 @@ const statusColors = {
 };
 
 export function CalendarWidget({ events, loading = false }: CalendarWidgetProps) {
+  const router = useRouter();
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -123,7 +126,10 @@ export function CalendarWidget({ events, loading = false }: CalendarWidgetProps)
 
       {events.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+          <button 
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            onClick={() => router.push('/agendamentos/calendario')}
+          >
             Ver calendário completo →
           </button>
         </div>

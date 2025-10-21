@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
-import bcrypt from 'bcryptjs';
 
 // GET - Buscar dados do perfil do usuário atual
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser(request);
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      );
-    }
+    // Sistema de autenticação simplificado removido
+    return NextResponse.json(
+      { error: 'Endpoint desabilitado - sistema de autenticação simplificado' },
+      { status: 501 }
+    );
 
     // Buscar dados completos do usuário
     const [userRows] = await pool.execute<RowDataPacket[]>(

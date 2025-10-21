@@ -28,11 +28,22 @@ export const CreateCompanySchema = CompanySchema.omit({
   updated_at: true 
 });
 
-// Schema para atualização (sem ID, será passado na URL)
-export const UpdateCompanySchema = CompanySchema.omit({ 
-  id: true,
-  created_at: true, 
-  updated_at: true 
+// Schema para atualização (sem ID, será passado na URL) - campos opcionais para permitir atualizações parciais
+export const UpdateCompanySchema = z.object({
+  name: z.string().min(1, "Nome da empresa é obrigatório").max(255, "Nome muito longo").optional(),
+  cnpj: z.string()
+    .regex(/^\d{14}$/, "CNPJ deve conter 14 dígitos")
+    .optional(),
+  contact_person: z.string().min(1, "Pessoa de contato é obrigatória").max(255, "Nome muito longo").optional(),
+  phone: z.string()
+    .regex(/^\d{10,11}$/, "Telefone deve conter 10 ou 11 dígitos")
+    .optional(),
+  email: z.string()
+    .email("E-mail deve ser válido")
+    .max(255, "E-mail muito longo")
+    .optional(),
+  address: z.string().min(1, "Endereço é obrigatório").optional(),
+  specialties: z.string().optional(),
 });
 
 // Tipos TypeScript derivados dos schemas

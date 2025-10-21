@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/database.js'
-import { formatDateISO, formatDateBR } from '@/lib/date-utils-br'
+import { query, execute } from '@/lib/database'
+
+// Utility functions for date formatting
+function formatDateBR(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('pt-BR')
+}
+
+function formatDateISO(dateString) {
+  if (!dateString) return null
+  const date = new Date(dateString)
+  return date.toISOString().split('T')[0]
+}
 
 // GET - Buscar ordem de serviço específica
 export async function GET(
@@ -22,14 +34,14 @@ export async function GET(
         u2.name as assigned_to_name,
         st.name as template_name,
         st.description_template,
-        mt.nome as maintenance_type_name
+        mt.name as maintenance_type_name
       FROM service_orders so
       LEFT JOIN equipment e ON so.equipment_id = e.id
       LEFT JOIN companies c ON so.company_id = c.id
       LEFT JOIN users u1 ON so.created_by = u1.id
       LEFT JOIN users u2 ON so.assigned_to = u2.id
       LEFT JOIN service_templates st ON so.template_id = st.id
-      LEFT JOIN tipos_manutencao mt ON so.maintenance_type_id = mt.id
+      LEFT JOIN maintenance_types mt ON so.maintenance_type_id = mt.id
       WHERE so.id = ?
     `
 
@@ -89,180 +101,88 @@ export async function GET(
   }
 }
 
-// PUT - Atualizar ordem de serviço
+// PUT - Atualizar ordem de serviço (usando request body)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id
-    const body = await request.json()
-    const {
-      equipmentId,
-      companyId,
-      maintenanceType,
-      maintenanceTypeId,
-      description,
-      priority,
-      status,
-      estimatedCost,
-      actualCost,
-      scheduledDate,
-      completionDate,
-      observations,
-      assignedTo,
-      templateId
-    } = body
-
-    // Verificar se a ordem existe
+    console.log('🔄 PUT request recebido para ordem de serviço')
+    
+    const { id } = params
+    
+    if (!id) {
+      console.log('❌ Erro de validação: ID ausente')
+      return NextResponse.json(
+        { success: false, error: 'ID é obrigatório' },
+        { status: 400 }
+      )
+    }
+    
+    // Verificar se a ordem existe primeiro
     const existingOrder = await query('SELECT * FROM service_orders WHERE id = ?', [id])
     
     if (existingOrder.length === 0) {
+      console.log('❌ Ordem de serviço não encontrada:', id)
       return NextResponse.json(
         { success: false, error: 'Ordem de serviço não encontrada' },
         { status: 404 }
       )
     }
-
-    // Preparar campos para atualização
-    const updateFields = []
-    const updateValues = []
-
-    if (equipmentId !== undefined) {
-      updateFields.push('equipment_id = ?')
-      updateValues.push(equipmentId)
-    }
-
-    if (companyId !== undefined) {
-      updateFields.push('company_id = ?')
-      updateValues.push(companyId)
-    }
-
-    if (maintenanceType !== undefined) {
-      updateFields.push('type = ?')
-      updateValues.push(maintenanceType)
-    }
-
-    if (maintenanceTypeId !== undefined) {
-      updateFields.push('maintenance_type_id = ?')
-      updateValues.push(maintenanceTypeId)
-    }
-
-    if (description !== undefined) {
-      updateFields.push('description = ?')
-      updateValues.push(description)
-    }
-
-    if (priority !== undefined) {
-      updateFields.push('priority = ?')
-      updateValues.push(priority)
-    }
-
-    if (status !== undefined) {
-      updateFields.push('status = ?')
-      updateValues.push(status)
-    }
-
-    // Usar 'cost' ao invés de 'estimated_cost' pois é o campo que existe na tabela
-    if (estimatedCost !== undefined) {
-      updateFields.push('cost = ?')
-      updateValues.push(estimatedCost)
-    }
-
-    // Usar 'cost' para o campo cost da API
-    if (body.cost !== undefined) {
-      updateFields.push('cost = ?')
-      updateValues.push(body.cost)
-    }
-
-    // Remover campos que não existem na tabela
-    // if (actualCost !== undefined) {
-    //   updateFields.push('actual_cost = ?')
-    //   updateValues.push(actualCost)
-    // }
-
-    if (scheduledDate !== undefined) {
-      updateFields.push('scheduled_date = ?')
-      updateValues.push(scheduledDate ? formatDateISO(new Date(scheduledDate)) : null)
-    }
-
-    if (completionDate !== undefined) {
-      updateFields.push('completion_date = ?')
-      updateValues.push(completionDate ? formatDateISO(new Date(completionDate)) : null)
-    }
-
-    if (observations !== undefined) {
-      updateFields.push('observations = ?')
-      updateValues.push(observations)
-    }
-
-    if (assignedTo !== undefined) {
-      updateFields.push('assigned_to = ?')
-      updateValues.push(assignedTo)
-    }
-
-    // Remover campos que não existem na tabela
-    // if (templateId !== undefined) {
-    //   updateFields.push('template_id = ?')
-    //   updateValues.push(templateId)
-    // }
-
-    if (updateFields.length === 0) {
+    
+    console.log('✅ Ordem encontrada:', existingOrder[0])
+    
+    // Ler o body da requisição
+    const body = await request.json()
+    console.log('📊 Body recebido:', body)
+    
+    const { status, observations } = body
+    
+    if (!status) {
       return NextResponse.json(
-        { success: false, error: 'Nenhum campo para atualizar' },
+        { success: false, error: 'Status é obrigatório' },
         { status: 400 }
       )
     }
-
-    // Executar atualização
+    
+    console.log('📝 Dados para atualização:', { id, status, observations })
+    
+    // Executar atualização usando execute() - mesmo padrão das APIs que funcionam
     const updateQuery = `
       UPDATE service_orders 
-      SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      SET status = ?, observations = ?, updated_at = NOW()
       WHERE id = ?
     `
     
-    updateValues.push(id)
-    await query(updateQuery, updateValues)
-
-    // Buscar ordem atualizada
-    const updatedOrder = await query(`
-      SELECT 
-        so.*,
-        e.name as equipment_name,
-        c.name as company_name,
-        u1.name as created_by_name,
-        u2.name as assigned_to_name,
-        mt.nome as maintenance_type_name
-      FROM service_orders so
-      LEFT JOIN equipment e ON so.equipment_id = e.id
-      LEFT JOIN companies c ON so.company_id = c.id
-      LEFT JOIN users u1 ON so.created_by = u1.id
-      LEFT JOIN users u2 ON so.assigned_to = u2.id
-      LEFT JOIN tipos_manutencao mt ON so.maintenance_type_id = mt.id
-      WHERE so.id = ?
-    `, [id])
-
-    const order = updatedOrder[0]
-
-    // Formatar datas
-    const formattedOrder = {
-      ...order,
-      scheduled_date: order.scheduled_date ? formatDateBR(order.scheduled_date) : null,
-      completion_date: order.completion_date ? formatDateBR(order.completion_date) : null,
-      created_at: formatDateBR(order.created_at),
-      updated_at: formatDateBR(order.updated_at)
+    console.log('📊 Query de atualização:', updateQuery)
+    console.log('📊 Parâmetros:', [status, observations || null, id])
+    
+    const result = await execute(updateQuery, [status, observations || null, id])
+    console.log('✅ Resultado da atualização:', result)
+    
+    if (result.affectedRows === 0) {
+      console.log('❌ Nenhuma linha foi afetada')
+      return NextResponse.json(
+        { success: false, error: 'Nenhuma alteração foi feita' },
+        { status: 400 }
+      )
     }
-
+    
+    // Buscar ordem atualizada
+    const updatedOrder = await query('SELECT * FROM service_orders WHERE id = ?', [id])
+    console.log('✅ Ordem atualizada:', updatedOrder[0])
+    
     return NextResponse.json({
       success: true,
-      data: formattedOrder,
-      message: 'Ordem de serviço atualizada com sucesso!'
+      data: updatedOrder[0],
+      message: 'Ordem de serviço atualizada com sucesso'
     })
-
+    
   } catch (error) {
-    console.error('Erro ao atualizar ordem de serviço:', error)
+    console.error('❌ Erro ao atualizar ordem de serviço:', error)
+    console.error('❌ Stack trace:', error.stack)
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      { success: false, error: 'Erro interno do servidor ao atualizar ordem de serviço' },
       { status: 500 }
     )
   }
@@ -286,7 +206,19 @@ export async function DELETE(
       )
     }
 
-    // Excluir ordem (o histórico será excluído automaticamente por CASCADE)
+    // Verificar se a ordem pode ser excluída (não está concluída)
+    const order = existingOrder[0]
+    if (order.status === 'CONCLUIDA') {
+      return NextResponse.json(
+        { success: false, error: 'Não é possível excluir uma ordem de serviço concluída' },
+        { status: 400 }
+      )
+    }
+
+    // Excluir histórico relacionado primeiro
+    await query('DELETE FROM maintenance_history WHERE service_order_id = ?', [id])
+
+    // Excluir a ordem
     await query('DELETE FROM service_orders WHERE id = ?', [id])
 
     return NextResponse.json({

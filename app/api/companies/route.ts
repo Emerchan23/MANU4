@@ -108,8 +108,17 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 API /api/companies - Criando nova empresa...');
     
+    // Get data from request body (proper REST API approach)
     const body = await request.json();
-    console.log('📊 Dados recebidos:', body);
+    console.log('📊 Dados recebidos via request body:', body);
+
+    // Validação simples
+    if (!body.name) {
+      return NextResponse.json(
+        { success: false, error: 'Nome é obrigatório' },
+        { status: 400 }
+      )
+    }
 
     // Conectar ao MariaDB
     connection = await mysql.createConnection(dbConfig);
@@ -129,7 +138,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Inserir nova empresa
+    // Inserir nova empresa (sem specialties - campo não existe na tabela)
     const [result] = await connection.execute(
       `INSERT INTO companies (name, cnpj, contact_person, phone, email, address) 
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -153,7 +162,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      company: newCompany[0],
+      data: newCompany[0],
+      id: result.insertId,
       message: 'Empresa criada com sucesso',
     });
 

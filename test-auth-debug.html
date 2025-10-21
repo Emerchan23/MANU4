@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Debug de Autenticação</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .warning { color: #ffc107; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.authenticated {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.not-authenticated {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug de Autenticação - Sistema de Manutenção</h1>
+        
+        <div class="section">
+            <h3>📊 Status Atual</h3>
+            <div id="authStatus" class="status not-authenticated">
+                ❌ Não autenticado
+            </div>
+            <div id="userInfo"></div>
+        </div>
+
+        <div class="section">
+            <h3>🚀 Teste de Login</h3>
+            <input type="text" id="username" placeholder="Usuário" value="admin" style="padding: 8px; margin: 5px; width: 150px;">
+            <input type="password" id="password" placeholder="Senha" value="admin123" style="padding: 8px; margin: 5px; width: 150px;">
+            <button onclick="testLogin()">🔑 Fazer Login</button>
+            <button onclick="testLogout()">🚪 Fazer Logout</button>
+        </div>
+
+        <div class="section">
+            <h3>💾 LocalStorage</h3>
+            <button onclick="checkLocalStorage()">📦 Verificar LocalStorage</button>
+            <button onclick="clearLocalStorage()">🗑️ Limpar LocalStorage</button>
+            <button onclick="simulateLogin()">🎭 Simular Login</button>
+            <div id="localStorageInfo"></div>
+        </div>
+
+        <div class="section">
+            <h3>🌐 Teste da Aplicação Principal</h3>
+            <button onclick="openMainApp()">🏠 Abrir App Principal</button>
+            <button onclick="testHeaderAPI()">🔍 Testar Header API</button>
+        </div>
+
+        <div class="section">
+            <h3>📝 Log de Eventos</h3>
+            <button onclick="clearLog()">🧹 Limpar Log</button>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateAuthStatus() {
+            const user = localStorage.getItem('user');
+            const authStatusDiv = document.getElementById('authStatus');
+            const userInfoDiv = document.getElementById('userInfo');
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    authStatusDiv.className = 'status authenticated';
+                    authStatusDiv.innerHTML = '✅ Autenticado';
+                    userInfoDiv.innerHTML = `
+                        <strong>Usuário:</strong> ${userData.name || userData.username}<br>
+                        <strong>Role:</strong> ${userData.role}<br>
+                        <strong>Admin:</strong> ${userData.isAdmin ? 'Sim' : 'Não'}
+                    `;
+                    log(`✅ Status: Usuário autenticado como ${userData.name}`, 'success');
+                } catch (e) {
+                    authStatusDiv.className = 'status not-authenticated';
+                    authStatusDiv.innerHTML = '❌ Erro nos dados';
+                    userInfoDiv.innerHTML = '';
+                    log(`❌ Erro ao parsear dados do usuário: ${e.message}`, 'error');
+                }
+            } else {
+                authStatusDiv.className = 'status not-authenticated';
+                authStatusDiv.innerHTML = '❌ Não autenticado';
+                userInfoDiv.innerHTML = '';
+                log('❌ Status: Usuário não autenticado', 'warning');
+            }
+        }
+
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            log(`🔄 Tentando login com ${username}/${password}...`);
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Login bem-sucedido! Status: ${response.status}`, 'success');
+                    log(`📄 Resposta: ${JSON.stringify(data, null, 2)}`, 'success');
+                    
+                    // Salvar dados como o useAuth faria
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    log(`💾 Dados salvos no localStorage`, 'success');
+                    updateAuthStatus();
+                } else {
+                    log(`❌ Erro no login! Status: ${response.status}`, 'error');
+                    log(`📄 Resposta: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                log(`💥 Erro na requisição: ${error.message}`, 'error');
+            }
+        }
+
+        function testLogout() {
+            log('🚪 Fazendo logout...');
+            localStorage.removeItem('user');
+            log('✅ Logout realizado, dados removidos do localStorage', 'success');
+            updateAuthStatus();
+        }
+
+        function checkLocalStorage() {
+            log('🔍 Verificando localStorage...');
+            
+            const user = localStorage.getItem('user');
+            const localStorageDiv = document.getElementById('localStorageInfo');
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    localStorageDiv.innerHTML = `
+                        <strong>Dados encontrados:</strong><br>
+                        <pre>${JSON.stringify(userData, null, 2)}</pre>
+                    `;
+                    log(`📊 Dados do usuário: ${JSON.stringify(userData, null, 2)}`, 'info');
+                } catch (e) {
+                    localStorageDiv.innerHTML = `<span class="error">❌ Erro ao parsear dados</span>`;
+                    log(`❌ Erro ao parsear dados do usuário: ${e.message}`, 'error');
+                }
+            } else {
+                localStorageDiv.innerHTML = `<span class="warning">⚠️ Nenhum dado encontrado</span>`;
+                log('⚠️ Nenhum dado encontrado no localStorage', 'warning');
+            }
+        }
+
+        function clearLocalStorage() {
+            localStorage.removeItem('user');
+            document.getElementById('localStorageInfo').innerHTML = '';
+            log('🗑️ localStorage limpo!', 'info');
+            updateAuthStatus();
+        }
+
+        function simulateLogin() {
+            const userData = {
+                id: 1,
+                username: "admin",
+                name: "Administrador",
+                role: "admin",
+                isAdmin: true
+            };
+            
+            localStorage.setItem('user', JSON.stringify(userData));
+            log('🎭 Login simulado com dados de teste', 'info');
+            updateAuthStatus();
+            checkLocalStorage();
+        }
+
+        function openMainApp() {
+            log('🌐 Abrindo aplicação principal...', 'info');
+            window.open('http://localhost:3000', '_blank');
+        }
+
+        async function testHeaderAPI() {
+            log('🔍 Testando se header consegue acessar dados...');
+            
+            // Simular o que o header faria
+            const user = localStorage.getItem('user');
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    const isAuthenticated = !!userData;
+                    const isAdmin = userData.isAdmin || false;
+                    
+                    log(`🔍 Simulação do Header:`, 'info');
+                    log(`  - user: ${JSON.stringify(userData)}`, 'info');
+                    log(`  - isAuthenticated: ${isAuthenticated}`, 'info');
+                    log(`  - isAdmin: ${isAdmin}`, 'info');
+                    
+                    if (isAuthenticated) {
+                        log('✅ Header deveria mostrar o dropdown do usuário', 'success');
+                        log('✅ Botão "Sair da Conta" deveria estar visível', 'success');
+                    } else {
+                        log('❌ Header não deveria mostrar dropdown', 'error');
+                    }
+                } catch (e) {
+                    log(`❌ Erro na simulação do header: ${e.message}`, 'error');
+                }
+            } else {
+                log('❌ Nenhum usuário no localStorage - Header não mostrará dropdown', 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Verificar status ao carregar
+        window.onload = function() {
+            log('🚀 Página de debug carregada!');
+            updateAuthStatus();
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>

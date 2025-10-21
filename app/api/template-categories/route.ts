@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 
 // Database connection configuration
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT - Atualizar categoria de template
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
   try {
     const body = await request.json()
     const {

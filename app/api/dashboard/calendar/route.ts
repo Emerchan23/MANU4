@@ -15,32 +15,55 @@ export async function GET(request: NextRequest) {
   try {
     connection = await mysql.createConnection(dbConfig);
     
-    // Get upcoming schedules from the view (next 7 days)
-    const [upcomingRows] = await connection.execute(
-      'SELECT * FROM upcoming_schedules ORDER BY scheduled_date ASC, priority DESC'
-    );
+    console.log('🔄 [DASHBOARD-CALENDAR] Iniciando busca de agendamentos...');
+    
+    // Get upcoming maintenance schedules - simplified query
+    const [schedulesRows] = await connection.execute(`
+      SELECT 
+        ms.id,
+        ms.scheduled_date,
+        ms.priority,
+        ms.status,
+        ms.description,
+        ms.assigned_user_id,
+        e.id as equipment_id,
+        e.name as equipment_name,
+        e.code as equipment_code,
+        s.name as sector_name
+      FROM maintenance_schedules ms
+      LEFT JOIN equipment e ON ms.equipment_id = e.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
+      WHERE ms.scheduled_date >= CURDATE()
+      AND ms.scheduled_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      ORDER BY ms.scheduled_date ASC
+      LIMIT 20
+    `);
+    
+    console.log('📊 [DASHBOARD-CALENDAR] Agendamentos encontrados:', schedulesRows.length);
     
     // Transform data for calendar format
-    const calendarEvents = (upcomingRows as any[]).map(schedule => ({
+    const events = (schedulesRows as any[]).map(schedule => ({
       id: schedule.id,
-      title: `${schedule.maintenance_type} - ${schedule.equipment_name}`,
+      title: `Manutenção - ${schedule.equipment_name || 'Equipamento'}`,
       date: schedule.scheduled_date,
-      priority: schedule.priority,
-      status: schedule.status,
       equipment: {
-        name: schedule.equipment_name,
-        code: schedule.equipment_code,
+        id: schedule.equipment_id,
+        name: schedule.equipment_name || 'N/A',
+        code: schedule.equipment_code || 'N/A',
       },
-      sector: schedule.sector_name,
-      assignedUser: schedule.assigned_user_name,
-      company: schedule.company_name,
-      estimatedCost: schedule.estimated_cost,
+      priority: schedule.priority || 'MEDIA',
+      status: schedule.status || 'SCHEDULED',
+      sector: schedule.sector_name || 'N/A',
+      description: schedule.description || '',
     }));
     
-    return NextResponse.json({
-      events: calendarEvents,
-      totalEvents: calendarEvents.length,
-    });
+    const response = {
+      events,
+      totalEvents: events.length,
+    };
+    
+    console.log('✅ [DASHBOARD-CALENDAR] Agendamentos carregados com sucesso');
+    return NextResponse.json(response);
     
   } catch (error) {
     console.error('Database error:', error);

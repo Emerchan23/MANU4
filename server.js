@@ -83,24 +83,30 @@ nextApp.prepare().then(async () => {
   const specialtiesRouter = await import('./api/specialties.js')
   const agendamentosRouter = await import('./api/agendamentos.js')
 
-  // Apply JSON middleware and mount API routes
-  app.use(express.json({ limit: '10mb' }))
-  app.use('/api/users', usersRouter.default)
-  app.use('/api/sectors', sectorsRouter.default)
+  // API Routes - Import dinamicamente
+  const authRouter = await import('./api/auth.js')
+
+  // Apply JSON middleware only to specific Express routes (not globally)
+  // Removido middleware global: app.use(express.json({ limit: '10mb' }))
+  
+  // Apply JSON middleware individually to each Express route
+  app.use('/api/auth', express.json({ limit: '10mb' }), authRouter.default)
+  app.use('/api/users', express.json({ limit: '10mb' }), usersRouter.default)
+  app.use('/api/sectors', express.json({ limit: '10mb' }), sectorsRouter.default)
   // Removido: app.use('/api/companies', express.json({ limit: '10mb' }), companiesRouter.default)
-  app.use('/api/categories', categoriesRouter.default)
-  app.use('/api/equipment', equipmentRouter.default)
+  app.use('/api/categories', express.json({ limit: '10mb' }), categoriesRouter.default)
+  // app.use('/api/equipment', equipmentRouter.default) // Desabilitado - usando Next.js API route
   // Removido: app.use('/api/service-orders', express.json({ limit: '10mb' }), serviceOrdersRouter.default)
-  app.use('/api/notifications', notificationsRouter.default)
-  app.use('/api/notification-settings', notificationSettingsRouter.default)
+  app.use('/api/notifications', express.json({ limit: '10mb' }), notificationsRouter.default)
+  app.use('/api/notification-settings', express.json({ limit: '10mb' }), notificationSettingsRouter.default)
   // Removido: app.use('/api/dashboard', express.json({ limit: '10mb' }), dashboardRouter.default)
   // Removido: app.use('/api/reports', express.json({ limit: '10mb' }), reportsRouter.default)
-  app.use('/api/sessions', sessionsRouter.default)
-  app.use('/api/user-settings', userSettingsRouter.default)
-  app.use('/api/user-preferences', userPreferencesRouter.default)
-  app.use('/api/system-settings', systemSettingsRouter.default)
-  app.use('/api/specialties', specialtiesRouter.default)
-  app.use('/api/agendamentos', agendamentosRouter.default)
+  app.use('/api/sessions', express.json({ limit: '10mb' }), sessionsRouter.default)
+  app.use('/api/user-settings', express.json({ limit: '10mb' }), userSettingsRouter.default)
+  app.use('/api/user-preferences', express.json({ limit: '10mb' }), userPreferencesRouter.default)
+  app.use('/api/system-settings', express.json({ limit: '10mb' }), systemSettingsRouter.default)
+  app.use('/api/specialties', express.json({ limit: '10mb' }), specialtiesRouter.default)
+  app.use('/api/agendamentos', express.json({ limit: '10mb' }), agendamentosRouter.default)
 
   // Health check endpoint (without JSON middleware since it doesn't need it)
   app.get("/api/health", (req, res) => {

@@ -82,11 +82,20 @@ router.get('/', async (req, res) => {
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
+      LEFT JOIN users creator ON ms.created_by = creator.id
       ${whereClause}
     `;
+
+    console.log('🔍 [AGENDAMENTOS API] Executando query de contagem:', countQuery);
+    console.log('🔍 [AGENDAMENTOS API] Parâmetros da query de contagem:', queryParams);
     
-    const countResult = await query(countQuery, queryParams);
-    const total = countResult[0]?.total || 0;
+    // Usar uma cópia dos parâmetros para a query de contagem
+    const countQueryParams = [...queryParams];
+    const countResult = await query(countQuery, countQueryParams);
+    const totalRecords = countResult[0].total;
+    const total = totalRecords;
+
+    console.log(`📊 [AGENDAMENTOS API] Total de registros encontrados: ${totalRecords}`);
 
     // Buscar agendamentos
     const scheduleQuery = `
@@ -100,19 +109,26 @@ router.get('/', async (req, res) => {
         s.name as sector_name,
         u.name as assigned_user_name,
         u.email as assigned_user_email,
-        creator.name as created_by_name
+        creator.name as created_by_name,
+        mp.name as maintenance_plan_name
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN users creator ON ms.created_by = creator.id
+      LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
       ${whereClause}
       ORDER BY ms.scheduled_date ASC, ms.priority DESC
       LIMIT ? OFFSET ?
     `;
 
-    queryParams.push(parseInt(limit), parseInt(offset));
-    const schedules = await query(scheduleQuery, queryParams);
+    // Criar uma cópia dos parâmetros para a query de agendamentos
+    const scheduleQueryParams = [...queryParams];
+    scheduleQueryParams.push(parseInt(limit), parseInt(offset));
+    console.log('🔍 [AGENDAMENTOS API] Executando query de agendamentos:', scheduleQuery);
+    console.log('🔍 [AGENDAMENTOS API] Parâmetros da query de agendamentos:', scheduleQueryParams);
+    
+    const schedules = await query(scheduleQuery, scheduleQueryParams);
 
     console.log(`📊 [AGENDAMENTOS API] Encontrados ${schedules.length} agendamentos`);
 
@@ -160,11 +176,13 @@ router.get('/:id', async (req, res) => {
         e.serial_number as equipment_serial,
         u.full_name as assigned_user_name,
         u.email as assigned_user_email,
-        creator.full_name as created_by_name
+        creator.full_name as created_by_name,
+        mp.name as maintenance_plan_name
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN users creator ON ms.created_by = creator.id
+      LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
       WHERE ms.id = ?
     `;
 
@@ -212,14 +230,32 @@ router.post('/', async (req, res) => {
       maintenance_type,
       description,
       scheduled_date,
-      priority = 'medium',
+      priority,
       assigned_user_id,
       estimated_cost,
       created_by,
       maintenance_plan_id,
       recurrence_type = 'none',
-      recurrence_interval = 1
+      recurrence_interval = 1,
+      recurrence_end_date,
+      recurrence_duration_type,
+      recurrence_duration_value,
+      duration_type, // Campo alternativo que pode vir do frontend
+      duration_value  // Campo alternativo que pode vir do frontend
     } = req.body;
+
+    // Mapear campos alternativos para os campos corretos
+    const finalDurationType = recurrence_duration_type || duration_type || 'indefinite';
+    const finalDurationValue = recurrence_duration_value || duration_value || 1;
+
+    console.log('🔍 [AGENDAMENTOS API] Campos de duração recebidos:', {
+      recurrence_duration_type,
+      recurrence_duration_value,
+      duration_type,
+      duration_value,
+      finalDurationType,
+      finalDurationValue
+    });
 
     // Validações básicas
     if (!equipment_id || !maintenance_type || !scheduled_date || !created_by) {
@@ -263,8 +299,9 @@ router.post('/', async (req, res) => {
       INSERT INTO maintenance_schedules (
         equipment_id, maintenance_type, description, scheduled_date, 
         priority, assigned_user_id, estimated_cost, created_by, maintenance_plan_id,
-        recurrence_type, recurrence_interval
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        recurrence_type, recurrence_interval, recurrence_end_date, 
+        recurrence_duration_type, recurrence_duration_value
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await query(insertQuery, [
@@ -278,15 +315,19 @@ router.post('/', async (req, res) => {
       created_by,
       maintenance_plan_id || null,
       recurrence_type,
-      recurrence_interval
+      recurrence_interval,
+      recurrence_end_date || null,
+      finalDurationType,
+      finalDurationValue
     ]);
 
     console.log('✅ [AGENDAMENTOS API] Agendamento criado com ID:', result.insertId);
 
     // Criar agendamentos recorrentes se necessário
+    let totalCreated = 1; // Já criamos o agendamento principal
     if (recurrence_type && recurrence_type !== 'none') {
       console.log('🔄 [AGENDAMENTOS API] Criando agendamentos recorrentes...');
-      await createRecurringSchedules(result.insertId, {
+      const additionalCreated = await createRecurringSchedules(result.insertId, {
         equipment_id,
         maintenance_type,
         description,
@@ -297,8 +338,12 @@ router.post('/', async (req, res) => {
         created_by,
         maintenance_plan_id,
         recurrence_type,
-        recurrence_interval
+        recurrence_interval,
+        recurrence_end_date,
+        recurrence_duration_type: finalDurationType,
+        recurrence_duration_value: finalDurationValue
       });
+      totalCreated += additionalCreated;
     }
 
     // Buscar o agendamento criado com dados completos
@@ -308,11 +353,13 @@ router.post('/', async (req, res) => {
         e.name as equipment_name,
         e.model as equipment_model,
         u.full_name as assigned_user_name,
-        creator.full_name as created_by_name
+        creator.full_name as created_by_name,
+        mp.name as maintenance_plan_name
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN users creator ON ms.created_by = creator.id
+      LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
       WHERE ms.id = ?
     `, [result.insertId]);
 
@@ -325,12 +372,18 @@ router.post('/', async (req, res) => {
       updated_at: formatDateBR(schedule.updated_at)
     };
 
+    const message = recurrence_type !== 'none' ? 
+      `Agendamento recorrente criado com sucesso! ${totalCreated} ocorrências geradas.` :
+      'Agendamento criado com sucesso';
+
     res.status(201).json({
       success: true,
-      data: formattedSchedule,
-      message: recurrence_type !== 'none' ? 
-        'Agendamento criado com sucesso! Agendamentos recorrentes foram gerados automaticamente.' :
-        'Agendamento criado com sucesso'
+      data: {
+        ...formattedSchedule,
+        total_occurrences: totalCreated
+      },
+      message,
+      created_schedules_count: totalCreated
     });
 
   } catch (error) {
@@ -477,11 +530,13 @@ router.put('/:id', async (req, res) => {
         e.name as equipment_name,
         e.model as equipment_model,
         u.full_name as assigned_user_name,
-        creator.full_name as created_by_name
+        creator.full_name as created_by_name,
+        mp.name as maintenance_plan_name
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN users creator ON ms.created_by = creator.id
+      LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
       WHERE ms.id = ?
     `, [id]);
 
@@ -616,43 +671,210 @@ router.get('/stats/overview', async (req, res) => {
   }
 });
 
-// Função auxiliar para criar agendamentos recorrentes
+// Função para calcular datas de recorrência com duração específica - CORRIGIDA
+function calculateRecurrenceDatesWithDuration(
+  startDate,
+  recurrenceType,
+  recurrenceInterval,
+  durationType,
+  durationValue,
+  endDate
+) {
+  const dates = [];
+  
+  console.log('🔄 Calculando recorrência com duração:', {
+    startDate: startDate.toISOString(),
+    recurrenceType,
+    recurrenceInterval,
+    durationType,
+    durationValue,
+    endDate: endDate?.toISOString()
+  });
+
+  // Adicionar a primeira data
+  dates.push(new Date(startDate));
+
+  // Se não há recorrência, retornar apenas a data inicial
+  if (recurrenceType === 'none' || recurrenceType === 'única') {
+    console.log('✅ Sem recorrência - retornando apenas data inicial');
+    return dates;
+  }
+
+  // Calcular número máximo de ocorrências TOTAL (incluindo a primeira)
+  let maxOccurrences;
+  
+  console.log(`🔍 Calculando maxOccurrences para: durationType=${durationType}, durationValue=${durationValue}, recurrenceType=${recurrenceType}`);
+  
+  if (durationType === 'occurrences') {
+    maxOccurrences = durationValue; // Número exato especificado
+  } else if (durationType === 'weeks' && durationValue > 0) {
+    // Para duração em semanas
+    if (recurrenceType === 'daily' || recurrenceType === 'diária') {
+      maxOccurrences = durationValue * 7; // 7 dias por semana
+    } else if (recurrenceType === 'weekly' || recurrenceType === 'semanal') {
+      maxOccurrences = durationValue; // 1 por semana
+    } else {
+      maxOccurrences = 50; // Limite de segurança
+    }
+  } else if (durationType === 'months' && durationValue > 0) {
+    // Para duração em meses
+    if (recurrenceType === 'daily' || recurrenceType === 'diária') {
+      maxOccurrences = durationValue * 30; // Aproximadamente 30 dias por mês
+    } else if (recurrenceType === 'weekly' || recurrenceType === 'semanal') {
+      maxOccurrences = durationValue * 4; // Aproximadamente 4 semanas por mês
+    } else if (recurrenceType === 'monthly' || recurrenceType === 'mensal') {
+      maxOccurrences = durationValue; // 1 por mês
+    } else {
+      maxOccurrences = 50;
+    }
+  } else if (durationType === 'end_date' && endDate) {
+    // Para data final, calcular baseado no período
+    const finalDate = new Date(endDate);
+    const diffTime = Math.abs(finalDate - startDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (recurrenceType === 'daily' || recurrenceType === 'diária') {
+      maxOccurrences = diffDays + 1; // +1 para incluir o dia inicial
+    } else if (recurrenceType === 'weekly' || recurrenceType === 'semanal') {
+      maxOccurrences = Math.floor(diffDays / 7) + 1;
+    } else if (recurrenceType === 'monthly' || recurrenceType === 'mensal') {
+      maxOccurrences = Math.floor(diffDays / 30) + 1;
+    } else {
+      maxOccurrences = 50;
+    }
+  } else if (durationType === 'indefinite') {
+    // Para recorrência indefinida, usar um limite padrão baseado no tipo
+    console.log('⚠️ PROBLEMA: durationType é "indefinite" - isso não deveria acontecer nos testes!');
+    maxOccurrences = 12; // Limite padrão para indefinite
+  } else {
+    console.log('⚠️ PROBLEMA: durationType não reconhecido:', durationType);
+    maxOccurrences = 50; // Limite de segurança padrão
+  }
+
+  console.log(`🎯 Máximo de ocorrências calculado: ${maxOccurrences} (incluindo a primeira)`);
+
+  // Gerar datas de recorrência
+  let currentDate = new Date(startDate);
+
+  // Loop para criar as ocorrências restantes (maxOccurrences - 1, pois já temos a primeira)
+  for (let i = 1; i < maxOccurrences; i++) {
+    // Calcular próxima data baseada no tipo de recorrência
+    let nextDate = new Date(currentDate);
+    
+    switch (recurrenceType) {
+      case 'daily':
+      case 'diária':
+        nextDate.setDate(nextDate.getDate() + recurrenceInterval);
+        break;
+      case 'weekly':
+      case 'semanal':
+        nextDate.setDate(nextDate.getDate() + (recurrenceInterval * 7));
+        break;
+      case 'monthly':
+      case 'mensal':
+        // Método mais seguro para adicionar meses, lidando corretamente com mudança de ano e dias do mês
+        const originalDay = nextDate.getDate();
+        const currentMonth = nextDate.getMonth();
+        const currentYear = nextDate.getFullYear();
+        const totalMonths = currentMonth + recurrenceInterval;
+        
+        // Calcular novo ano e mês
+        const newYear = currentYear + Math.floor(totalMonths / 12);
+        const newMonth = totalMonths % 12;
+        
+        // Criar nova data com o ano e mês corretos
+        nextDate.setFullYear(newYear);
+        nextDate.setMonth(newMonth);
+        
+        // Verificar se o dia original é válido no novo mês
+        const daysInNewMonth = new Date(newYear, newMonth + 1, 0).getDate();
+        if (originalDay > daysInNewMonth) {
+          // Se o dia original não existe no novo mês (ex: 31 jan -> fev), usar o último dia do mês
+          nextDate.setDate(daysInNewMonth);
+        } else {
+          // Caso contrário, manter o dia original
+          nextDate.setDate(originalDay);
+        }
+        
+        console.log(`📅 Recorrência mensal: ${currentYear}-${currentMonth + 1}-${originalDay} -> ${newYear}-${newMonth + 1}-${nextDate.getDate()}`);
+        break;
+      case 'yearly':
+      case 'anual':
+        nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval);
+        break;
+      default:
+        console.log('❌ Tipo de recorrência não reconhecido:', recurrenceType);
+        return dates;
+    }
+
+    // Para end_date, verificar se não ultrapassou a data final
+    if (durationType === 'end_date' && endDate) {
+      const finalDate = new Date(endDate);
+      if (nextDate > finalDate) {
+        console.log('✅ Próxima data ultrapassaria a data final, parando:', nextDate.toISOString(), '>', finalDate.toISOString());
+        break;
+      }
+    }
+
+    // Validar se a data calculada é válida antes de adicionar
+    if (isNaN(nextDate.getTime())) {
+      console.log('❌ Data inválida calculada, parando:', nextDate);
+      break;
+    }
+
+    // Atualizar currentDate e adicionar à lista
+    currentDate = nextDate;
+    dates.push(new Date(currentDate));
+
+    console.log(`📅 Adicionada data ${i + 1}: ${currentDate.toISOString()}`);
+
+    // Limite de segurança para evitar loops infinitos
+    if (dates.length > 100) {
+      console.log('⚠️ Limite de 100 ocorrências atingido por segurança');
+      break;
+    }
+  }
+
+  console.log(`✅ Calculadas ${dates.length} datas de recorrência total`);
+  return dates;
+}
+
+// Função auxiliar para criar agendamentos recorrentes com duração
 async function createRecurringSchedules(parentId, scheduleData) {
   const { 
     equipment_id, maintenance_type, description, scheduled_date, 
     priority, assigned_user_id, estimated_cost, recurrence_type, 
-    recurrence_interval, created_by, maintenance_plan_id 
+    recurrence_interval, created_by, maintenance_plan_id,
+    recurrence_duration_type, recurrence_duration_value, recurrence_end_date
   } = scheduleData;
 
-  console.log('🔄 Criando agendamentos recorrentes para:', { parentId, recurrence_type, recurrence_interval });
+  console.log('🔄 Criando agendamentos recorrentes para:', { 
+    parentId, recurrence_type, recurrence_interval,
+    recurrence_duration_type, recurrence_duration_value 
+  });
+  
+  console.log('📋 maintenance_plan_id recebido:', maintenance_plan_id, 'tipo:', typeof maintenance_plan_id);
 
-  // Criar até 12 próximos agendamentos (1 ano)
-  let nextDate = new Date(scheduled_date);
+  // Calcular todas as datas de recorrência
+  const startDate = new Date(scheduled_date);
+  const endDate = recurrence_end_date ? new Date(recurrence_end_date) : null;
+  
+  const recurrenceDates = calculateRecurrenceDatesWithDuration(
+    startDate,
+    recurrence_type,
+    recurrence_interval,
+    recurrence_duration_type || 'indefinite',
+    recurrence_duration_value || 1,
+    endDate
+  );
+
+  console.log(`📅 Criando ${recurrenceDates.length - 1} agendamentos recorrentes adicionais`);
+
   let createdCount = 0;
   
-  for (let i = 0; i < 12; i++) {
-    // Calcular próxima data baseada no tipo de recorrência
-    switch (recurrence_type) {
-      case 'daily':
-        nextDate = new Date(nextDate);
-        nextDate.setDate(nextDate.getDate() + recurrence_interval);
-        break;
-      case 'weekly':
-        nextDate = new Date(nextDate);
-        nextDate.setDate(nextDate.getDate() + (recurrence_interval * 7));
-        break;
-      case 'monthly':
-        nextDate = new Date(nextDate);
-        nextDate.setMonth(nextDate.getMonth() + recurrence_interval);
-        break;
-      case 'yearly':
-        nextDate = new Date(nextDate);
-        nextDate.setFullYear(nextDate.getFullYear() + recurrence_interval);
-        break;
-      default:
-        console.log('❌ Tipo de recorrência inválido:', recurrence_type);
-        return;
-    }
+  // Criar agendamentos para cada data (exceto a primeira que já foi criada)
+  for (let i = 1; i < recurrenceDates.length; i++) {
+    const nextDate = recurrenceDates[i];
 
     try {
       // Inserir próximo agendamento
@@ -660,8 +882,9 @@ async function createRecurringSchedules(parentId, scheduleData) {
         INSERT INTO maintenance_schedules (
           equipment_id, maintenance_type, description, scheduled_date, priority, 
           assigned_user_id, estimated_cost, created_by, maintenance_plan_id,
-          recurrence_type, recurrence_interval, parent_schedule_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          recurrence_type, recurrence_interval, parent_schedule_id,
+          recurrence_end_date, recurrence_duration_type, recurrence_duration_value
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const result = await query(insertQuery, [
@@ -673,22 +896,26 @@ async function createRecurringSchedules(parentId, scheduleData) {
         assigned_user_id || null,
         estimated_cost || null,
         created_by,
-        maintenance_plan_id || null,
+        maintenance_plan_id !== undefined ? maintenance_plan_id : null,
         recurrence_type,
         recurrence_interval,
-        parentId
+        parentId,
+        recurrence_end_date ? formatDateISO(recurrence_end_date) : null,
+        recurrence_duration_type || 'indefinite',
+        recurrence_duration_value || 1
       ]);
 
       createdCount++;
-      console.log(`✅ Agendamento recorrente ${i + 1} criado com ID: ${result.insertId} para data: ${formatDateBR(nextDate)}`);
+      console.log(`✅ Agendamento recorrente ${i}/${recurrenceDates.length - 1} criado com ID: ${result.insertId} para data: ${formatDateBR(nextDate)}`);
       
     } catch (error) {
-      console.error(`❌ Erro ao criar agendamento recorrente ${i + 1}:`, error);
+      console.error(`❌ Erro ao criar agendamento recorrente ${i}:`, error);
       break; // Para de criar se houver erro
     }
   }
 
-  console.log(`✅ Total de ${createdCount} agendamentos recorrentes criados`);
+  console.log(`✅ Total de ${createdCount} agendamentos recorrentes criados (${recurrenceDates.length} total incluindo o principal)`);
+  return createdCount;
 }
 
 export default router;

@@ -1,18 +1,10 @@
-import dotenv from 'dotenv';
-import mysql from 'mysql2/promise';
-
-// Carregar variáveis de ambiente
-dotenv.config();
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function testDatabaseConnection() {
-  console.log('🔍 Testando conectividade com MariaDB...');
-  console.log(`📍 DB_DATA_PATH: ${process.env.DB_DATA_PATH}`);
-  console.log(`📍 DB_HOST: ${process.env.DB_HOST}`);
-  console.log(`📍 DB_NAME: ${process.env.DB_NAME}`);
-  console.log(`📍 DB_USER: ${process.env.DB_USER}`);
-  console.log(`📍 DB_PORT: ${process.env.DB_PORT}`);
+  console.log('🔍 Testando conexão com o banco de dados...');
   
-  // Configuração do banco
+  // Configuração do banco de dados
   const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -22,68 +14,103 @@ async function testDatabaseConnection() {
     charset: 'utf8mb4',
     timezone: '+00:00'
   };
-  
-  console.log('\n📋 Configuração do banco:');
-  console.log(`   Host: ${dbConfig.host}:${dbConfig.port}`);
-  console.log(`   Database: ${dbConfig.database}`);
-  console.log(`   User: ${dbConfig.user}`);
-  
+
+  console.log('📊 Configuração do banco:', {
+    host: dbConfig.host,
+    user: dbConfig.user,
+    database: dbConfig.database,
+    port: dbConfig.port,
+    hasPassword: !!dbConfig.password
+  });
+
   let connection;
   
   try {
-    // Teste 1: Conectar ao banco
-    console.log('\n1. Testando conexão com MariaDB...');
+    // Tentar conectar
     connection = await mysql.createConnection(dbConfig);
-    console.log('✅ Conexão estabelecida com sucesso!');
+    console.log('✅ Conectado ao banco de dados com sucesso!');
     
-    // Teste 2: Verificar versão do MariaDB
-    console.log('\n2. Verificando versão do banco...');
-    const [versionResult] = await connection.execute('SELECT VERSION() as version');
-    console.log(`✅ Versão: ${versionResult[0].version}`);
+    // Verificar se o banco existe
+    const [databases] = await connection.execute('SHOW DATABASES');
+    console.log('\n📋 Bancos de dados disponíveis:');
+    databases.forEach(db => {
+      const dbName = Object.values(db)[0];
+      console.log(`  - ${dbName}`);
+    });
     
-    // Teste 3: Verificar banco atual
-    console.log('\n3. Verificando banco de dados atual...');
-    const [dbResult] = await connection.execute('SELECT DATABASE() as current_db');
-    console.log(`✅ Banco atual: ${dbResult[0].current_db}`);
+    // Verificar se o banco hospital_maintenance existe
+    const hospitalDbExists = databases.some(db => Object.values(db)[0] === 'hospital_maintenance');
     
-    // Teste 4: Listar tabelas
-    console.log('\n4. Listando tabelas existentes...');
-    const [tables] = await connection.execute('SHOW TABLES');
-    console.log(`✅ Tabelas encontradas: ${tables.length}`);
-    
-    if (tables.length > 0) {
-      tables.forEach(table => {
-        const tableName = Object.values(table)[0];
-        console.log(`   - ${tableName}`);
-      });
-    } else {
-      console.log('   ⚠️ Nenhuma tabela encontrada no banco');
+    if (!hospitalDbExists) {
+      console.log('\n❌ Banco "hospital_maintenance" não encontrado!');
+      return;
     }
     
-    // Teste 5: Verificar estrutura das principais tabelas
-    console.log('\n5. Verificando estrutura das principais tabelas...');
-    const mainTables = ['equipment', 'sectors', 'companies', 'service_orders', 'requests', 'alerts', 'notifications'];
+    console.log('\n✅ Banco "hospital_maintenance" encontrado!');
     
-    for (const tableName of mainTables) {
-      try {
-        const [structure] = await connection.execute(`DESCRIBE ${tableName}`);
-        console.log(`✅ Tabela '${tableName}': ${structure.length} colunas`);
-        
-        // Contar registros
-        const [countResult] = await connection.execute(`SELECT COUNT(*) as total FROM ${tableName}`);
-        console.log(`   📊 Registros: ${countResult[0].total}`);
-      } catch (error) {
-        console.log(`❌ Tabela '${tableName}': ${error.message}`);
+    // Verificar tabelas
+    const [tables] = await connection.execute('SHOW TABLES');
+    console.log('\n📋 Tabelas no banco hospital_maintenance:');
+    tables.forEach((table, index) => {
+      const tableName = Object.values(table)[0];
+      console.log(`  ${index + 1}. ${tableName}`);
+    });
+    
+    // Verificar tabela maintenance_schedules especificamente
+    const maintenanceSchedulesExists = tables.some(table => Object.values(table)[0] === 'maintenance_schedules');
+    
+    if (!maintenanceSchedulesExists) {
+      console.log('\n❌ Tabela "maintenance_schedules" não encontrada!');
+      return;
+    }
+    
+    console.log('\n✅ Tabela "maintenance_schedules" encontrada!');
+    
+    // Verificar dados na tabela maintenance_schedules
+    const [schedules] = await connection.execute('SELECT COUNT(*) as total FROM maintenance_schedules');
+    console.log(`\n📊 Total de agendamentos: ${schedules[0].total}`);
+    
+    if (schedules[0].total > 0) {
+      // Mostrar alguns agendamentos
+      const [sampleSchedules] = await connection.execute(`
+        SELECT id, status, equipment_id, scheduled_date, priority 
+        FROM maintenance_schedules 
+        ORDER BY id DESC 
+        LIMIT 5
+      `);
+      
+      console.log('\n📋 Últimos 5 agendamentos:');
+      sampleSchedules.forEach(schedule => {
+        console.log(`  ID: ${schedule.id}, Status: ${schedule.status}, Equipment: ${schedule.equipment_id}, Data: ${schedule.scheduled_date}, Prioridade: ${schedule.priority}`);
+      });
+      
+      // Verificar agendamento específico ID 27
+      const [schedule27] = await connection.execute('SELECT * FROM maintenance_schedules WHERE id = 27');
+      
+      if (schedule27.length > 0) {
+        console.log('\n📋 Agendamento ID 27:');
+        console.log(JSON.stringify(schedule27[0], null, 2));
+      } else {
+        console.log('\n❌ Agendamento ID 27 não encontrado!');
       }
     }
     
-    console.log('\n🎉 Teste de conectividade concluído com sucesso!');
-    return true;
+    // Verificar tabela service_orders
+    const serviceOrdersExists = tables.some(table => Object.values(table)[0] === 'service_orders');
+    
+    if (serviceOrdersExists) {
+      console.log('\n✅ Tabela "service_orders" encontrada!');
+      
+      const [serviceOrders] = await connection.execute('SELECT COUNT(*) as total FROM service_orders');
+      console.log(`📊 Total de ordens de serviço: ${serviceOrders[0].total}`);
+    } else {
+      console.log('\n❌ Tabela "service_orders" não encontrada!');
+    }
     
   } catch (error) {
-    console.error('❌ Erro na conectividade:', error.message);
-    console.error('📋 Detalhes do erro:', error.code);
-    return false;
+    console.error('❌ Erro ao conectar com o banco de dados:', error.message);
+    console.error('❌ Código do erro:', error.code);
+    console.error('❌ Stack trace:', error.stack);
   } finally {
     if (connection) {
       await connection.end();
@@ -92,13 +119,4 @@ async function testDatabaseConnection() {
   }
 }
 
-// Executar teste
-testDatabaseConnection()
-  .then(success => {
-    console.log(`\n📊 Resultado final: ${success ? 'SUCESSO' : 'FALHA'}`);
-    process.exit(success ? 0 : 1);
-  })
-  .catch(error => {
-    console.error('❌ Erro fatal:', error);
-    process.exit(1);
-  });
+testDatabaseConnection();

@@ -76,10 +76,12 @@ export function useServiceTemplates() {
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao atualizar template de serviço');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao atualizar template de serviço');
       }
 
-      const updatedTemplate = await response.json();
+      const result = await response.json();
+      const updatedTemplate = result.data || result;
       setServiceTemplates(prev => prev.map(template => template.id === id ? updatedTemplate : template));
       toast.success('Template de serviço atualizado com sucesso!');
       return updatedTemplate;

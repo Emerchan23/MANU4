@@ -1,80 +1,96 @@
 const mysql = require('mysql2/promise');
-const fs = require('fs');
+require('dotenv').config();
 
 async function checkServiceOrdersTable() {
+  console.log('🔍 Verificando estrutura da tabela service_orders...');
+  
+  // Configuração do banco de dados
+  const dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'hospital_maintenance',
+    port: process.env.DB_PORT || 3306,
+    charset: 'utf8mb4',
+    timezone: '+00:00'
+  };
+
+  let connection;
+  
   try {
-    // Ler configuração do banco
-    const envContent = fs.readFileSync('.env', 'utf8');
-    const dbConfig = {};
+    connection = await mysql.createConnection(dbConfig);
+    console.log('✅ Conectado ao banco de dados');
     
-    envContent.split('\n').forEach(line => {
-      if (line.includes('DB_')) {
-        const [key, value] = line.split('=');
-        if (key && value) {
-          dbConfig[key.trim()] = value.trim();
-        }
-      }
-    });
+    // 1. Verificar se a tabela existe
+    console.log('\n📋 Verificando se a tabela service_orders existe...');
+    const [tables] = await connection.execute(`
+      SHOW TABLES LIKE 'service_orders'
+    `);
     
-    console.log('🔍 Conectando ao banco de dados...');
-    
-    const connection = await mysql.createConnection({
-      host: dbConfig.DB_HOST || 'localhost',
-      user: dbConfig.DB_USER || 'root',
-      password: dbConfig.DB_PASSWORD || '',
-      database: dbConfig.DB_NAME || 'sistema_manutencao'
-    });
-    
-    console.log('✅ Conectado ao banco!');
-    
-    // Verificar estrutura da tabela service_orders
-    console.log('\n📊 Estrutura da tabela service_orders:');
-    const [columns] = await connection.execute('DESCRIBE service_orders');
-    
-    columns.forEach(column => {
-      console.log(`  - ${column.Field}: ${column.Type} ${column.Null === 'NO' ? 'NOT NULL' : 'NULL'} ${column.Key ? `(${column.Key})` : ''} ${column.Default !== null ? `DEFAULT ${column.Default}` : ''}`);
-    });
-    
-    // Verificar alguns registros de exemplo
-    console.log('\n📋 Registros de exemplo (primeiros 3):');
-    const [rows] = await connection.execute('SELECT * FROM service_orders LIMIT 3');
-    
-    if (rows.length > 0) {
-      console.log('Campos disponíveis:', Object.keys(rows[0]).join(', '));
-      rows.forEach((row, index) => {
-        console.log(`\n📄 Registro ${index + 1}:`);
-        Object.entries(row).forEach(([key, value]) => {
-          console.log(`  ${key}: ${value}`);
-        });
-      });
-    } else {
-      console.log('Nenhum registro encontrado na tabela.');
+    if (tables.length === 0) {
+      console.log('❌ Tabela service_orders não existe!');
+      return;
     }
     
-    // Verificar se existem campos que podem estar causando problemas
-    console.log('\n🔍 Verificando campos específicos...');
-    const problematicFields = [
-      'equipment_id', 'company_id', 'maintenance_type', 'actual_cost', 
-      'completion_date', 'template_id', 'estimated_cost', 'scheduled_date'
-    ];
+    console.log('✅ Tabela service_orders existe');
     
-    const existingFields = columns.map(col => col.Field);
+    // 2. Verificar estrutura da tabela
+    console.log('\n📋 Verificando estrutura da tabela service_orders...');
+    const [columns] = await connection.execute('DESCRIBE service_orders');
     
-    problematicFields.forEach(field => {
-      if (existingFields.includes(field)) {
-        const fieldInfo = columns.find(col => col.Field === field);
-        console.log(`✅ ${field}: ${fieldInfo.Type} ${fieldInfo.Null === 'NO' ? 'NOT NULL' : 'NULL'}`);
-      } else {
-        console.log(`❌ ${field}: CAMPO NÃO EXISTE`);
-      }
+    console.log('Colunas da tabela:');
+    columns.forEach(col => {
+      console.log(`  - ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Default !== null ? `DEFAULT: ${col.Default}` : ''}`);
     });
     
-    await connection.end();
-    console.log('\n🔌 Conexão fechada');
+    // 3. Verificar se a coluna 'type' existe
+    const typeColumn = columns.find(col => col.Field === 'type');
+    if (!typeColumn) {
+      console.log('\n❌ Coluna "type" não existe na tabela service_orders!');
+      console.log('🔧 Adicionando coluna "type"...');
+      
+      await connection.execute(`
+        ALTER TABLE service_orders 
+        ADD COLUMN type ENUM('PREVENTIVA', 'CORRETIVA', 'PREDITIVA', 'EMERGENCIAL') DEFAULT 'PREVENTIVA'
+      `);
+      
+      console.log('✅ Coluna "type" adicionada com sucesso!');
+    } else {
+      console.log('\n✅ Coluna "type" existe:', typeColumn.Type);
+    }
+    
+    // 4. Verificar se a coluna 'cost' existe
+    const costColumn = columns.find(col => col.Field === 'cost');
+    if (!costColumn) {
+      console.log('\n❌ Coluna "cost" não existe na tabela service_orders!');
+      console.log('🔧 Adicionando coluna "cost"...');
+      
+      await connection.execute(`
+        ALTER TABLE service_orders 
+        ADD COLUMN cost DECIMAL(10,2) DEFAULT 0.00
+      `);
+      
+      console.log('✅ Coluna "cost" adicionada com sucesso!');
+    } else {
+      console.log('\n✅ Coluna "cost" existe:', costColumn.Type);
+    }
+    
+    // 5. Verificar estrutura final
+    console.log('\n📋 Estrutura final da tabela service_orders:');
+    const [finalColumns] = await connection.execute('DESCRIBE service_orders');
+    
+    finalColumns.forEach(col => {
+      console.log(`  - ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Default !== null ? `DEFAULT: ${col.Default}` : ''}`);
+    });
     
   } catch (error) {
     console.error('❌ Erro:', error.message);
-    process.exit(1);
+    console.error('❌ Stack trace:', error.stack);
+  } finally {
+    if (connection) {
+      await connection.end();
+      console.log('\n🔌 Conexão fechada.');
+    }
   }
 }
 

@@ -91,7 +91,7 @@ export function TemplateManager() {
     let success = false
     
     if (selectedTemplate) {
-      success = await updateTemplate({ ...data, id: selectedTemplate.id }) !== null
+      success = await updateTemplate(selectedTemplate.id, data) !== null
     } else {
       success = await createTemplate(data) !== null
     }

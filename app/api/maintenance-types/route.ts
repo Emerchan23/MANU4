@@ -141,11 +141,12 @@ export async function POST(request: NextRequest) {
   let connection;
   try {
     console.log('🔄 API /api/maintenance-types - POST request received');
-    const body = await request.json();
-    console.log('📊 Request body:', body);
     
+    // Get data from request body
+    const body = await request.json();
     const { name, description, category = 'preventiva', isActive = true } = body;
-    console.log('📊 Parsed data:', { name, description, category, isActive });
+    
+    console.log('📊 Parsed data from request body:', { name, description, category, isActive });
     
     // Validação simples
     if (!name) {
@@ -198,10 +199,12 @@ export async function PUT(request: NextRequest) {
   let connection;
   try {
     console.log('🔄 PUT /api/maintenance-types - Request received');
-    const body = await request.json();
-    console.log('📊 Request body:', body);
     
-    const { id, name, isActive } = body;
+    // Get data from request body
+    const body = await request.json();
+    const { id, name, isActive = true } = body;
+    
+    console.log('📊 Parsed data from request body:', { id, name, isActive });
     
     if (!id || !name) {
       return NextResponse.json(

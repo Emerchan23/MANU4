@@ -1,15 +1,14 @@
 const BASE_URL = 'http://localhost:3000';
 
 // Dados de teste para criação
-const testCompanyData = {
-  name: 'Empresa Teste API Completo',
-  cnpj: '99.888.777/0001-66',
-  contact_person: 'Ana Teste',
-  phone: '(11) 95555-5555',
-  email: 'ana@testeapi.com',
-  address: 'Rua Teste API, 999 - São Paulo/SP',
-  specialties: 'Teste, API, Validação'
-};
+const createData = {
+      name: 'Empresa Teste API Completo',
+      cnpj: '99.888.777/0001-66',
+      contact_person: 'Ana Teste',
+      phone: '(11) 95555-5555',
+      email: 'ana@testeapi.com',
+      address: 'Rua Teste API, 999 - São Paulo/SP'
+    };
 
 let createdCompanyId = null;
 
@@ -43,24 +42,24 @@ async function testCompaniesAPIs() {
     // 2. Testar POST /api/companies (Criação)
     console.log('➕ 2. TESTANDO POST /api/companies (Criação)');
     console.log('   URL:', `${BASE_URL}/api/companies`);
-    console.log('   Dados:', JSON.stringify(testCompanyData, null, 2));
+    console.log('   Dados:', JSON.stringify(createData, null, 2));
     
     const createResponse = await fetch(`${BASE_URL}/api/companies`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(testCompanyData)
+      body: JSON.stringify(createData)
     });
     
-    const createData = await createResponse.json();
+    const createResponseData = await createResponse.json();
     
     console.log('   ✅ Status:', createResponse.status);
-    console.log('   📝 Resposta:', JSON.stringify(createData, null, 2));
+    console.log('   📝 Resposta:', JSON.stringify(createResponseData, null, 2));
     
     // Extrair ID da empresa criada
-    if (createData && createData.id) {
-      createdCompanyId = createData.id;
+    if (createResponseData && createResponseData.id) {
+      createdCompanyId = createResponseData.id;
       console.log('   🆔 ID da empresa criada:', createdCompanyId);
     }
     
@@ -99,8 +98,7 @@ async function testCompaniesAPIs() {
         contact_person: 'Ana Teste Atualizada',
         phone: '(11) 94444-4444',
         email: 'ana.atualizada@testeapi.com',
-        address: 'Rua Teste API Atualizada, 888 - Rio de Janeiro/RJ',
-        specialties: 'Teste Atualizado, API, Validação Completa'
+        address: 'Rua Teste API Atualizada, 888 - Rio de Janeiro/RJ'
       };
       
       console.log('   📝 Dados de atualização:', JSON.stringify(updateData, null, 2));

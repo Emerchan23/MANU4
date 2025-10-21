@@ -1,0 +1,112 @@
+'use client';
+
+import { MainLayout } from '@/components/layout/main-layout';
+import { MetricCard } from '@/src/components/dashboard/MetricCard';
+import { AlertsList } from '@/src/components/dashboard/AlertsList';
+import { CalendarWidget } from '@/src/components/dashboard/CalendarWidget';
+import { OperationalCharts } from '@/src/components/dashboard/OperationalCharts';
+import { useDashboardMetrics } from '@/src/hooks/useDashboardMetrics';
+import { useCalendarEvents } from '@/src/hooks/useCalendarEvents';
+import { useAlerts } from '@/src/hooks/useAlerts';
+
+export default function Dashboard() {
+  const { data: metricsData, loading: metricsLoading } = useDashboardMetrics();
+  const { data: calendarData, loading: calendarLoading } = useCalendarEvents();
+  const { data: alertsData, loading: alertsLoading } = useAlerts();
+
+  return (
+    <MainLayout>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Dashboard Principal
+          </h1>
+          <p className="text-gray-600">
+            Visão geral do sistema de manutenção hospitalar
+          </p>
+        </div>
+
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <MetricCard
+            title="Equipamentos Ativos"
+            value={metricsData?.metrics.equipmentsActive || 0}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            }
+            color="blue"
+            loading={metricsLoading}
+          />
+          
+          <MetricCard
+            title="Manutenções Pendentes"
+            value={metricsData?.metrics.pendingMaintenances || 0}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            color="yellow"
+            loading={metricsLoading}
+          />
+          
+          <MetricCard
+            title="Alertas Críticos"
+            value={metricsData?.metrics.criticalAlerts || 0}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            }
+            color="red"
+            loading={metricsLoading}
+          />
+          
+          <MetricCard
+            title="Ordens de Serviço"
+            value={metricsData?.metrics.openServiceOrders || 0}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+            color="green"
+            loading={metricsLoading}
+          />
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Calendar Widget - Takes 2 columns on large screens */}
+          <div className="lg:col-span-2">
+            <CalendarWidget
+              events={calendarData?.events || []}
+              loading={calendarLoading}
+            />
+          </div>
+
+          {/* Alerts List - Takes 1 column */}
+          <div className="lg:col-span-1">
+            <AlertsList
+              alerts={alertsData?.alerts || []}
+              loading={alertsLoading}
+            />
+          </div>
+        </div>
+
+        {/* Operational Charts */}
+        <div className="mt-8">
+          <OperationalCharts
+            monthlyStats={metricsData?.charts.monthlyStats || []}
+            costAnalysis={metricsData?.charts.costAnalysis || []}
+            companyPerformance={metricsData?.charts.companyPerformance || []}
+            loading={metricsLoading}
+          />
+        </div>
+      </div>
+    </MainLayout>
+  );
+}

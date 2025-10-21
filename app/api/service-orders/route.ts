@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
         ss.name as subsector_name,
         u1.name as created_by_name,
         u2.name as assigned_to_name,
-        mt.nome as maintenance_type_name
+        mt.name as maintenance_type_name
       FROM service_orders so
       LEFT JOIN equipment e ON so.equipment_id = e.id
       LEFT JOIN companies c ON so.company_id = c.id
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN subsectors ss ON e.subsector_id = ss.id
       LEFT JOIN users u1 ON so.created_by = u1.id
       LEFT JOIN users u2 ON so.assigned_to = u2.id
-      LEFT JOIN tipos_manutencao mt ON so.maintenance_type_id = mt.id
+      LEFT JOIN maintenance_types mt ON so.maintenance_type_id = mt.id
       ${whereClause}
       ORDER BY so.created_at DESC
       LIMIT ? OFFSET ?
@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
         ss.name as subsector_name,
         u1.name as created_by_name,
         u2.name as assigned_to_name,
-        mt.nome as maintenance_type_name
+        mt.name as maintenance_type_name
       FROM service_orders so
       LEFT JOIN equipment e ON so.equipment_id = e.id
       LEFT JOIN companies c ON so.company_id = c.id
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
       LEFT JOIN subsectors ss ON e.subsector_id = ss.id
       LEFT JOIN users u1 ON so.created_by = u1.id
       LEFT JOIN users u2 ON so.assigned_to = u2.id
-      LEFT JOIN tipos_manutencao mt ON so.maintenance_type_id = mt.id
+      LEFT JOIN maintenance_types mt ON so.maintenance_type_id = mt.id
       WHERE so.id = ?
     `, [result.insertId])
 

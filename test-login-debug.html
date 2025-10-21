@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Login - Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .info {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Teste de Login - Debug</h1>
+        
+        <div class="form-group">
+            <label for="username">Usuário:</label>
+            <input type="text" id="username" value="admin">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Senha:</label>
+            <input type="password" id="password" value="admin123">
+        </div>
+        
+        <button onclick="testLogin()">🚀 Fazer Login</button>
+        <button onclick="checkLocalStorage()">📦 Verificar LocalStorage</button>
+        <button onclick="clearLocalStorage()">🗑️ Limpar LocalStorage</button>
+        <button onclick="testMainApp()">🌐 Testar App Principal</button>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            log(`🔄 Tentando login com ${username}/${password}...`);
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Login bem-sucedido! Status: ${response.status}`, 'success');
+                    log(`📄 Resposta: ${JSON.stringify(data, null, 2)}`, 'success');
+                    
+                    // Simular o que o useAuth faz
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    localStorage.setItem('isAuthenticated', 'true');
+                    
+                    log(`💾 Dados salvos no localStorage`, 'success');
+                } else {
+                    log(`❌ Erro no login! Status: ${response.status}`, 'error');
+                    log(`📄 Resposta: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                log(`💥 Erro na requisição: ${error.message}`, 'error');
+            }
+        }
+
+        function checkLocalStorage() {
+            log('🔍 Verificando localStorage...');
+            
+            const user = localStorage.getItem('user');
+            const isAuthenticated = localStorage.getItem('isAuthenticated');
+            
+            log(`👤 user: ${user || 'null'}`);
+            log(`🔐 isAuthenticated: ${isAuthenticated || 'null'}`);
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    log(`📊 Dados do usuário: ${JSON.stringify(userData, null, 2)}`, 'info');
+                } catch (e) {
+                    log(`❌ Erro ao parsear dados do usuário: ${e.message}`, 'error');
+                }
+            }
+        }
+
+        function clearLocalStorage() {
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAuthenticated');
+            log('🗑️ localStorage limpo!', 'info');
+        }
+
+        function testMainApp() {
+            log('🌐 Abrindo aplicação principal...', 'info');
+            window.open('http://localhost:3000', '_blank');
+        }
+
+        // Verificar localStorage ao carregar
+        window.onload = function() {
+            log('🚀 Página carregada!');
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>

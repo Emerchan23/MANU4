@@ -131,8 +131,10 @@ export async function GET(
 ) {
   try {
     const { id } = params;
+    console.log('🔄 Iniciando geração de PDF para ordem:', id);
 
     if (!id) {
+      console.log('❌ ID da ordem não fornecido');
       return NextResponse.json(
         { error: 'ID da ordem de serviço é obrigatório' },
         { status: 400 }
@@ -140,14 +142,18 @@ export async function GET(
     }
 
     // Conectar ao banco de dados
+    console.log('🔌 Conectando ao banco de dados...');
     const connection = await createConnection();
+    console.log('✅ Conexão com banco estabelecida');
 
     try {
       // Carregar configurações PDF personalizadas
+      console.log('⚙️ Carregando configurações PDF...');
       const pdfSettings = await loadPDFSettings(connection);
-      console.log('Configurações PDF carregadas:', pdfSettings);
+      console.log('✅ Configurações PDF carregadas:', pdfSettings);
 
       // Buscar dados da ordem de serviço
+      console.log('🔍 Buscando dados da ordem de serviço...');
       const [rows] = await connection.execute(`
         SELECT 
           so.*,
@@ -160,12 +166,13 @@ export async function GET(
           u.name as assigned_to_name
         FROM service_orders so
         LEFT JOIN equipment e ON so.equipment_id = e.id
-        LEFT JOIN empresas emp ON so.company_id = emp.id
+        LEFT JOIN companies emp ON so.company_id = emp.id
         LEFT JOIN users u ON so.assigned_to = u.id
         WHERE so.id = ?
       `, [id]);
 
       if (!Array.isArray(rows) || rows.length === 0) {
+        console.log('❌ Ordem de serviço não encontrada para ID:', id);
         return NextResponse.json(
           { error: 'Ordem de serviço não encontrada' },
           { status: 404 }
@@ -173,8 +180,10 @@ export async function GET(
       }
 
       const order = rows[0] as any;
+      console.log('✅ Ordem encontrada:', order.id, order.order_number);
 
       // Criar PDF usando jsPDF
+      console.log('📄 Criando documento PDF...');
       const { jsPDF } = await import('jspdf');
       
       const doc = new jsPDF({
@@ -182,6 +191,7 @@ export async function GET(
         unit: 'mm',
         format: 'a4'
       });
+      console.log('✅ Documento PDF criado');
       
       // Configurar fonte padrão
       doc.setFont('helvetica');
@@ -658,9 +668,11 @@ export async function GET(
       }
 
       // Gerar o PDF
+      console.log('🎯 Gerando buffer do PDF...');
       const pdfBuffer = doc.output('arraybuffer');
       const osNumber = order.order_number || `${String(order.id).padStart(5, '0')}/2024`;
       const filename = `OS-${osNumber}.pdf`;
+      console.log('✅ PDF gerado com sucesso:', filename, 'Tamanho:', pdfBuffer.byteLength, 'bytes');
 
       return new NextResponse(pdfBuffer, {
         status: 200,
@@ -676,9 +688,11 @@ export async function GET(
     }
 
   } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
+    console.error('💥 ERRO CRÍTICO ao gerar PDF:', error);
+    console.error('Stack trace:', error.stack);
+    console.error('ID da ordem:', params.id);
     return NextResponse.json(
-      { error: 'Erro interno do servidor ao gerar PDF' },
+      { error: 'Erro interno do servidor ao gerar PDF', details: error.message },
       { status: 500 }
     );
   }

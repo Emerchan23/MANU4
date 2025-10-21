@@ -101,6 +101,8 @@ export const useEquipments = () => {
     setLoading(true);
     setError(null);
     try {
+      console.log('🔄 Enviando dados para atualização:', equipmentData);
+      
       const response = await fetch(`/api/equipment/${id}`, {
         method: 'PUT',
         headers: {
@@ -109,7 +111,23 @@ export const useEquipments = () => {
         body: JSON.stringify(equipmentData),
       });
       
-      const data = await response.json();
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', response.headers);
+      
+      if (!response.ok) {
+        console.error('❌ Response não OK:', response.status, response.statusText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const responseText = await response.text();
+      console.log('📄 Response text:', responseText);
+      
+      if (!responseText) {
+        throw new Error('Resposta vazia do servidor');
+      }
+      
+      const data = JSON.parse(responseText);
+      console.log('📊 Dados parseados:', data);
       
       if (data.success) {
         toast.success('Equipamento atualizado com sucesso!');

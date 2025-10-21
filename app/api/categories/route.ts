@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { query, execute } from '@/lib/database'
 import type { DatabaseResult } from '@/types/database'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     console.log('🔍 [API] Buscando categorias...')
     
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
   try {
     const { id, name, isElectrical, description } = await request.json()
     

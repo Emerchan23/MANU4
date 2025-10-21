@@ -14,6 +14,7 @@ import { ArrowLeft, Calendar, Clock, AlertTriangle, FileText, BarChart3, Calenda
 import { toast } from "sonner"
 import EquipmentHistory from "@/components/EquipmentHistory"
 import { PrioritySelect } from "@/components/ui/priority-select"
+import { DateInput } from "@/components/ui/date-input"
 
 import type { Equipment } from "@/types/equipment"
 
@@ -29,6 +30,9 @@ interface ScheduleFormData {
   observations: string
   recurrenceType: string
   recurrenceInterval: number
+  recurrenceDurationType: string
+  recurrenceDurationValue: number
+  recurrenceEndDate: string
   sectorName: string
   subsectorName: string
   templateId: string
@@ -96,6 +100,9 @@ export default function NovoAgendamentoPage() {
     observations: "",
     recurrenceType: "none",
     recurrenceInterval: 1,
+    recurrenceDurationType: "indefinite",
+    recurrenceDurationValue: 1,
+    recurrenceEndDate: "",
     sectorName: "",
     subsectorName: "",
     templateId: "",
@@ -388,6 +395,9 @@ export default function NovoAgendamentoPage() {
            maintenancePlanId: formData.maintenancePlanId && formData.maintenancePlanId !== "none" ? parseInt(formData.maintenancePlanId) : null,
            recurrenceType: formData.recurrenceType,
            recurrenceInterval: formData.recurrenceInterval,
+           recurrenceDurationType: formData.recurrenceDurationType,
+           recurrenceDurationValue: formData.recurrenceDurationValue,
+           recurrenceEndDate: formData.recurrenceEndDate || null,
            createdBy: 1, // TODO: Pegar do contexto de autenticação
          }),
       })
@@ -583,11 +593,10 @@ export default function NovoAgendamentoPage() {
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {maintenanceTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="PREVENTIVA">Preventiva</SelectItem>
+                      <SelectItem value="CORRETIVA">Corretiva</SelectItem>
+                      <SelectItem value="PREDITIVA">Preditiva</SelectItem>
+                      <SelectItem value="EMERGENCIAL">Emergencial</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -824,40 +833,205 @@ export default function NovoAgendamentoPage() {
 
               {/* Recorrência */}
               <div className="space-y-4">
-                <Label>Recorrência (opcional)</Label>
+                <div className="space-y-2">
+                  <Label>Repetir Agendamento (opcional)</Label>
+                  <p className="text-sm text-gray-600">
+                    Configure se este agendamento deve se repetir automaticamente
+                  </p>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="recurrenceType">Tipo de Recorrência</Label>
+                    <Label htmlFor="recurrenceType">
+                      Frequência de Repetição
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Como o agendamento deve se repetir)
+                      </span>
+                    </Label>
                     <Select
                       value={formData.recurrenceType}
                       onValueChange={(value) => setFormData({ ...formData, recurrenceType: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Selecione a frequência" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Sem recorrência</SelectItem>
-                        <SelectItem value="daily">Diária</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="monthly">Mensal</SelectItem>
-                        <SelectItem value="yearly">Anual</SelectItem>
+                        <SelectItem value="none">
+                          <div className="flex flex-col">
+                            <span>Não repetir</span>
+                            <span className="text-xs text-gray-500">Agendamento único</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="daily">
+                          <div className="flex flex-col">
+                            <span>Diariamente</span>
+                            <span className="text-xs text-gray-500">Todos os dias</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="weekly">
+                          <div className="flex flex-col">
+                            <span>Semanalmente</span>
+                            <span className="text-xs text-gray-500">A cada semana</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="monthly">
+                          <div className="flex flex-col">
+                            <span>Mensalmente</span>
+                            <span className="text-xs text-gray-500">A cada mês</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="yearly">
+                          <div className="flex flex-col">
+                            <span>Anualmente</span>
+                            <span className="text-xs text-gray-500">A cada ano</span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   {formData.recurrenceType !== 'none' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="recurrenceInterval">Intervalo</Label>
-                      <Input
-                        id="recurrenceInterval"
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={formData.recurrenceInterval}
-                        onChange={(e) => setFormData({ ...formData, recurrenceInterval: parseInt(e.target.value) || 1 })}
-                        placeholder="Ex: 1 (a cada 1 semana)"
-                      />
-                    </div>
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="recurrenceInterval">
+                          Intervalo
+                          <span className="text-xs text-gray-500 ml-2">
+                            (A cada quantos períodos repetir)
+                          </span>
+                        </Label>
+                        <Input
+                          id="recurrenceInterval"
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={formData.recurrenceInterval}
+                          onChange={(e) => setFormData({ ...formData, recurrenceInterval: parseInt(e.target.value) || 1 })}
+                          placeholder={
+                            formData.recurrenceType === 'daily' ? 'Ex: 2 (a cada 2 dias)' :
+                            formData.recurrenceType === 'weekly' ? 'Ex: 2 (a cada 2 semanas)' :
+                            formData.recurrenceType === 'monthly' ? 'Ex: 3 (a cada 3 meses)' :
+                            formData.recurrenceType === 'yearly' ? 'Ex: 1 (a cada 1 ano)' :
+                            'Ex: 1'
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="recurrenceDurationType">
+                          Duração da Recorrência
+                          <span className="text-xs text-gray-500 ml-2">
+                            (Por quanto tempo repetir)
+                          </span>
+                        </Label>
+                        <Select
+                          value={formData.recurrenceDurationType}
+                          onValueChange={(value) => setFormData({ ...formData, recurrenceDurationType: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a duração" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="indefinite">
+                              <div className="flex flex-col">
+                                <span>Indefinidamente</span>
+                                <span className="text-xs text-gray-500">Sem data limite</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="months">
+                              <div className="flex flex-col">
+                                <span>Por X meses</span>
+                                <span className="text-xs text-gray-500">Definir quantidade de meses</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="weeks">
+                              <div className="flex flex-col">
+                                <span>Por X semanas</span>
+                                <span className="text-xs text-gray-500">Definir quantidade de semanas</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="occurrences">
+                              <div className="flex flex-col">
+                                <span>Por X ocorrências</span>
+                                <span className="text-xs text-gray-500">Definir número de repetições</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="end_date">
+                              <div className="flex flex-col">
+                                <span>Até data específica</span>
+                                <span className="text-xs text-gray-500">Definir data final</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {formData.recurrenceDurationType !== 'indefinite' && formData.recurrenceDurationType !== 'end_date' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="recurrenceDurationValue">
+                            {formData.recurrenceDurationType === 'months' ? 'Quantidade de Meses' :
+                             formData.recurrenceDurationType === 'weeks' ? 'Quantidade de Semanas' :
+                             formData.recurrenceDurationType === 'occurrences' ? 'Número de Ocorrências' :
+                             'Valor'}
+                          </Label>
+                          <Input
+                            id="recurrenceDurationValue"
+                            type="number"
+                            min="1"
+                            max={formData.recurrenceDurationType === 'months' ? 60 : 
+                                 formData.recurrenceDurationType === 'weeks' ? 260 : 
+                                 1000}
+                            value={formData.recurrenceDurationValue}
+                            onChange={(e) => setFormData({ ...formData, recurrenceDurationValue: parseInt(e.target.value) || 1 })}
+                            placeholder={
+                              formData.recurrenceDurationType === 'months' ? 'Ex: 6 (durante 6 meses)' :
+                              formData.recurrenceDurationType === 'weeks' ? 'Ex: 12 (durante 12 semanas)' :
+                              formData.recurrenceDurationType === 'occurrences' ? 'Ex: 24 (repetir 24 vezes)' :
+                              'Ex: 1'
+                            }
+                          />
+                        </div>
+                      )}
+
+                      {formData.recurrenceDurationType === 'end_date' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="recurrenceEndDate">Data Final</Label>
+                          <DateInput
+                            id="recurrenceEndDate"
+                            value={formData.recurrenceEndDate}
+                            onChange={(value) => setFormData({ ...formData, recurrenceEndDate: value })}
+                            placeholder="dd/mm/aaaa"
+                          />
+                        </div>
+                      )}
+
+                      {formData.recurrenceType !== 'none' && (
+                        <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                          <strong>Resumo:</strong> {
+                            (() => {
+                              const baseText = formData.recurrenceType === 'daily' && formData.recurrenceInterval === 1 ? 'Repetir todos os dias' :
+                                formData.recurrenceType === 'daily' ? `Repetir a cada ${formData.recurrenceInterval} dias` :
+                                formData.recurrenceType === 'weekly' && formData.recurrenceInterval === 1 ? 'Repetir toda semana' :
+                                formData.recurrenceType === 'weekly' && formData.recurrenceInterval === 2 ? 'Repetir quinzenalmente' :
+                                formData.recurrenceType === 'weekly' ? `Repetir a cada ${formData.recurrenceInterval} semanas` :
+                                formData.recurrenceType === 'monthly' && formData.recurrenceInterval === 1 ? 'Repetir todo mês' :
+                                formData.recurrenceType === 'monthly' ? `Repetir a cada ${formData.recurrenceInterval} meses` :
+                                formData.recurrenceType === 'yearly' && formData.recurrenceInterval === 1 ? 'Repetir todo ano' :
+                                formData.recurrenceType === 'yearly' ? `Repetir a cada ${formData.recurrenceInterval} anos` :
+                                'Configuração personalizada';
+
+                              const durationText = formData.recurrenceDurationType === 'indefinite' ? 'indefinidamente' :
+                                formData.recurrenceDurationType === 'months' ? `por ${formData.recurrenceDurationValue} ${formData.recurrenceDurationValue === 1 ? 'mês' : 'meses'}` :
+                                formData.recurrenceDurationType === 'weeks' ? `por ${formData.recurrenceDurationValue} ${formData.recurrenceDurationValue === 1 ? 'semana' : 'semanas'}` :
+                                formData.recurrenceDurationType === 'occurrences' ? `por ${formData.recurrenceDurationValue} ${formData.recurrenceDurationValue === 1 ? 'ocorrência' : 'ocorrências'}` :
+                                formData.recurrenceDurationType === 'end_date' && formData.recurrenceEndDate ? `até ${new Date(formData.recurrenceEndDate).toLocaleDateString('pt-BR')}` :
+                                '';
+
+                              return `${baseText} ${durationText}`;
+                            })()
+                          }
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

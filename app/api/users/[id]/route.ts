@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
-import { getCurrentUser, logAccess } from '@/lib/auth';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // Função simples para hash de senha
@@ -16,14 +14,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const currentUser = await getCurrentUser(request);
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      );
-    }
+    // Sistema de autenticação simplificado removido
+    return NextResponse.json(
+      { error: 'Endpoint desabilitado - sistema de autenticação simplificado' },
+      { status: 501 }
+    );
 
     const userId = params.id;
 

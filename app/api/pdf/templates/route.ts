@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { query } from '../../../../lib/database.js'
 
 // GET /api/pdf/templates - Buscar templates PDF
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type')
@@ -81,9 +81,20 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT /api/pdf/templates - Atualizar template
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
   try {
-    const body = await request.json()
+    // Ler o body da requisição usando método alternativo para evitar conflito
+    let body;
+    try {
+      const bodyText = await request.text();
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('❌ Erro ao processar body:', parseError);
+      return NextResponse.json(
+        { error: 'Dados inválidos na requisição' },
+        { status: 400 }
+      );
+    }
     const { id, name, headerConfig, footerConfig, logoConfig, isDefault } = body
     
     if (!id || !name || !headerConfig || !footerConfig) {

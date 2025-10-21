@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import mysql from 'mysql2/promise';
+import { NextRequest, NextResponse } from 'next/server'
+import mysql from 'mysql2/promise'
+import rateLimiter from '@/lib/rate-limiter.js';
 
 // Database connection configuration
 const dbConfig = {
@@ -10,56 +11,86 @@ const dbConfig = {
 };
 
 export async function GET(request: NextRequest) {
+  // Aplicar rate limiting
+  const rateLimitResult = rateLimiter.apiMiddleware('/api/dashboard/alerts')(request, NextResponse)
+  if (!rateLimitResult) {
+    return // Rate limit excedido, resposta já enviada
+  }
+  
   let connection;
   
   try {
     connection = await mysql.createConnection(dbConfig);
     
-    // Get critical alerts from the view
-    const [alertsRows] = await connection.execute(
-      'SELECT * FROM critical_alerts_view LIMIT 10'
-    );
+    console.log('🔄 [DASHBOARD-ALERTS] Iniciando busca de alertas...');
     
-    // Transform data for frontend consumption
-    const alerts = (alertsRows as any[]).map(alert => ({
-      id: alert.id,
-      type: alert.alert_type,
-      priority: alert.priority,
-      description: alert.description,
-      dueDate: alert.data_vencimento,
-      daysOverdue: alert.dias_atraso,
-      status: alert.status,
-      equipment: {
-        name: alert.equipment_name,
-        code: alert.equipment_code,
-      },
-      sector: alert.sector_name,
-    }));
-    
-    // Get alert statistics
-    const [statsRows] = await connection.execute(`
+    // Get critical alerts - simplified query
+    const [alertsRows] = await connection.execute(`
       SELECT 
-        COUNT(*) as total_alerts,
-        SUM(CASE WHEN prioridade = 'ALTA' THEN 1 ELSE 0 END) as high_priority,
-        SUM(CASE WHEN prioridade = 'MEDIA' THEN 1 ELSE 0 END) as medium_priority,
-        SUM(CASE WHEN prioridade = 'BAIXA' THEN 1 ELSE 0 END) as low_priority,
-        SUM(CASE WHEN dias_atraso > 0 THEN 1 ELSE 0 END) as overdue_alerts
-      FROM alerts 
-      WHERE status = 'ATIVO'
+        a.id,
+        a.tipo as alert_type,
+        a.prioridade as priority,
+        a.descricao as description,
+        a.data_vencimento as due_date,
+        a.status,
+        e.name as equipment_name,
+        e.code as equipment_code,
+        s.name as sector_name
+      FROM alerts a
+      LEFT JOIN equipment e ON a.equipment_id = e.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
+      WHERE a.status = 'ATIVO'
+      ORDER BY 
+        CASE a.prioridade 
+          WHEN 'ALTA' THEN 1 
+          WHEN 'MEDIA' THEN 2 
+          WHEN 'BAIXA' THEN 3 
+        END
+      LIMIT 10
     `);
     
-    const stats = statsRows[0] as any;
+    console.log('📊 [DASHBOARD-ALERTS] Alertas encontrados:', alertsRows.length);
     
-    return NextResponse.json({
-      alerts,
-      statistics: {
-        total: stats.total_alerts || 0,
-        highPriority: stats.high_priority || 0,
-        mediumPriority: stats.medium_priority || 0,
-        lowPriority: stats.low_priority || 0,
-        overdue: stats.overdue_alerts || 0,
-      },
+    // Transform data for frontend consumption
+    const alerts = (alertsRows as any[]).map(alert => {
+      const dueDate = new Date(alert.due_date);
+      const today = new Date();
+      const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+      
+      return {
+        id: alert.id,
+        type: alert.alert_type,
+        priority: alert.priority,
+        description: alert.description,
+        dueDate: alert.due_date,
+        daysOverdue: daysOverdue,
+        status: alert.status,
+        equipment: {
+          name: alert.equipment_name || 'N/A',
+          code: alert.equipment_code || 'N/A',
+        },
+        sector: alert.sector_name || 'N/A',
+      };
     });
+    
+    // Get alert statistics - simplified
+    const statistics = {
+      total: alerts.length,
+      highPriority: alerts.filter(a => a.priority === 'ALTA').length,
+      mediumPriority: alerts.filter(a => a.priority === 'MEDIA').length,
+      lowPriority: alerts.filter(a => a.priority === 'BAIXA').length,
+      overdue: alerts.filter(a => a.daysOverdue > 0).length,
+    };
+    
+    console.log('📊 [DASHBOARD-ALERTS] Estatísticas:', statistics);
+    
+    const response = {
+      alerts,
+      statistics,
+    };
+    
+    console.log('✅ [DASHBOARD-ALERTS] Alertas carregados com sucesso');
+    return NextResponse.json(response);
     
   } catch (error) {
     console.error('Database error:', error);

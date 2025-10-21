@@ -32,9 +32,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     connection = await mysql.createConnection(dbConfig)
     console.log('✅ Database connection established');
     
-    // Verificar se o tipo existe
+    // Verificar se o tipo existe na tabela correta
     const [existing] = await connection.execute(
-      'SELECT id FROM tipos_manutencao WHERE id = ?',
+      'SELECT id FROM maintenance_types WHERE id = ?',
       [id]
     )
     console.log('🔍 Existing record check:', existing);
@@ -46,16 +46,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
     
-    // Atualizar tipo de manutenção (apenas nome e ativo)
+    // Atualizar tipo de manutenção (apenas nome e ativo) - usando isActive para compatibilidade MariaDB
     const [updateResult] = await connection.execute(
-      'UPDATE tipos_manutencao SET nome = ?, ativo = ?, atualizado_em = NOW() WHERE id = ?',
-      [name, isActive, id]
+      'UPDATE maintenance_types SET name = ?, isActive = ?, updated_at = NOW() WHERE id = ?',
+      [name, isActive ? 1 : 0, id]
     );
     console.log('✅ Update result:', updateResult);
     
     // Buscar o registro atualizado para retornar
     const [updated] = await connection.execute(
-      'SELECT id, nome as name, ativo as isActive FROM tipos_manutencao WHERE id = ?',
+      'SELECT id, name, isActive FROM maintenance_types WHERE id = ?',
       [id]
     );
     

@@ -1,20 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Lock, User, AlertCircle, Mail } from 'lucide-react';
+import { Loader2, Lock, User, AlertCircle } from 'lucide-react';
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/dashboard';
+  const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,16 +25,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Validação básica no frontend
-      if (!identifier.trim()) {
-        throw new Error('Por favor, informe seu usuário ou e-mail');
+      // Validação básica
+      if (!username.trim()) {
+        throw new Error('Por favor, informe seu usuário');
       }
 
       if (!password) {
         throw new Error('Por favor, informe sua senha');
       }
-
-      console.log('🔐 Enviando requisição de login...');
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -42,27 +40,22 @@ export default function LoginPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: identifier.trim(),
+          username: username.trim(),
           password
-        }),
-        credentials: 'include'
+        })
       });
 
       const data = await response.json();
-
-      console.log('📥 Resposta do servidor:', {
-        status: response.status,
-        success: data.success
-      });
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Erro ao fazer login');
       }
 
-      console.log('✅ Login bem-sucedido! Redirecionando...');
+      // Salvar dados do usuário no contexto e localStorage
+      login(data.user);
 
-      // Login bem-sucedido - redirecionar
-      router.push(redirectTo);
+      // Redirecionar para dashboard
+      router.push('/dashboard');
       router.refresh();
 
     } catch (err) {
@@ -97,15 +90,15 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="identifier">Usuário ou E-mail</Label>
+              <Label htmlFor="username">Usuário</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
-                  id="identifier"
+                  id="username"
                   type="text"
-                  placeholder="Digite seu usuário ou e-mail"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="Digite seu usuário"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="pl-10"
                   required
                   autoFocus
@@ -113,9 +106,6 @@ export default function LoginPage() {
                   autoComplete="username"
                 />
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Você pode usar seu nome de usuário ou endereço de e-mail
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -160,9 +150,6 @@ export default function LoginPage() {
             <div className="space-y-1 text-sm">
               <p className="font-mono text-gray-600 dark:text-gray-400">
                 <strong>Usuário:</strong> admin
-              </p>
-              <p className="font-mono text-gray-600 dark:text-gray-400">
-                <strong>E-mail:</strong> admin@sistema.com
               </p>
               <p className="font-mono text-gray-600 dark:text-gray-400">
                 <strong>Senha:</strong> admin123

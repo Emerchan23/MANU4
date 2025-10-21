@@ -75,7 +75,7 @@ export async function GET(
   }
 }
 
-// PUT - Update maintenance schedule
+// PUT - Update maintenance schedule (using request body)
 export async function PUT(
   request: NextRequest,
   context: { params: { id: string } }
@@ -85,8 +85,9 @@ export async function PUT(
     const { id } = context.params
     console.log('🔄 API /api/maintenance-schedules/[id] - Atualizando agendamento:', id);
     
+    // Ler o body da requisição
     const body = await request.json()
-    console.log('📊 Dados recebidos:', body);
+    console.log('📊 Body recebido:', body);
 
     const {
       equipment_id,
@@ -201,7 +202,7 @@ export async function PUT(
       SELECT 
         ms.*,
         e.name as equipment_name,
-        e.patrimonio as equipment_code,
+        e.code as equipment_code,
         e.model as equipment_model,
         e.sector_id,
         c.name as company_name,

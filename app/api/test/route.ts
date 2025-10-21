@@ -1,17 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  return NextResponse.json({ message: 'Test GET works' });
+  console.log('=== TESTE GET ===');
+  return NextResponse.json({ message: 'API funcionando', timestamp: new Date().toISOString() });
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    console.log('Test POST called');
-    const data = await request.json();
-    console.log('Test POST data:', data);
-    return NextResponse.json({ message: 'Test POST works', data });
-  } catch (error) {
-    console.error('Test POST error:', error);
-    return NextResponse.json({ error: 'Test POST failed' }, { status: 500 });
-  }
+export async function POST() {
+  console.log('=== TESTE POST ===');
+  return NextResponse.json({ message: 'POST funcionando', timestamp: new Date().toISOString() });
 }

@@ -1,44 +1,76 @@
 const mysql = require('mysql2/promise');
 
-async function checkStatusEnum() {
-  const connection = await mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'hospital_maintenance'
-  });
+const dbConfig = {
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'hospital_maintenance'
+};
 
+async function checkMaintenanceSchedulesStatus() {
+  let connection;
+  
   try {
-    // Verificar ENUM do status na tabela service_orders
+    console.log('🔍 Conectando ao banco de dados...');
+    connection = await mysql.createConnection(dbConfig);
+    console.log('✅ Conectado com sucesso!');
+
+    // Verificar estrutura da tabela maintenance_schedules
+    console.log('\n📋 Verificando estrutura da tabela maintenance_schedules...');
     const [columns] = await connection.execute(`
-      SELECT COLUMN_TYPE 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = 'hospital_maintenance' 
-      AND TABLE_NAME = 'service_orders' 
-      AND COLUMN_NAME = 'status'
+      SHOW COLUMNS FROM maintenance_schedules
     `);
     
-    console.log('📊 ENUM do status na tabela service_orders:');
-    console.log(columns[0]?.COLUMN_TYPE || 'Coluna não encontrada');
-    
-    // Verificar valores únicos de status existentes
-    const [statusValues] = await connection.execute(`
-      SELECT DISTINCT status, COUNT(*) as count
-      FROM service_orders 
-      GROUP BY status
-      ORDER BY status
-    `);
-    
-    console.log('\n📊 Valores de status existentes no banco:');
-    statusValues.forEach(row => {
-      console.log(`  - ${row.status}: ${row.count} registros`);
+    console.log('\n📊 Colunas da tabela maintenance_schedules:');
+    columns.forEach(column => {
+      console.log(`- ${column.Field}: ${column.Type} (Default: ${column.Default})`);
     });
+
+    // Verificar especificamente o campo status
+    const statusColumn = columns.find(col => col.Field === 'status');
+    if (statusColumn) {
+      console.log('\n🎯 Campo status encontrado:');
+      console.log(`- Tipo: ${statusColumn.Type}`);
+      console.log(`- Default: ${statusColumn.Default}`);
+      console.log(`- Null: ${statusColumn.Null}`);
+    } else {
+      console.log('\n❌ Campo status não encontrado na tabela!');
+    }
+
+    // Verificar registros existentes e seus status
+    console.log('\n📊 Verificando registros existentes...');
+    const [schedules] = await connection.execute(`
+      SELECT id, equipment_id, status, created_at 
+      FROM maintenance_schedules 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `);
     
+    console.log('\n📋 Últimos 10 agendamentos:');
+    schedules.forEach(schedule => {
+      console.log(`- ID: ${schedule.id}, Status: ${schedule.status}, Criado em: ${schedule.created_at}`);
+    });
+
+    // Verificar valores únicos de status
+    console.log('\n🔍 Valores únicos de status na tabela:');
+    const [statusValues] = await connection.execute(`
+      SELECT DISTINCT status, COUNT(*) as count 
+      FROM maintenance_schedules 
+      GROUP BY status
+    `);
+    
+    statusValues.forEach(item => {
+      console.log(`- ${item.status}: ${item.count} registros`);
+    });
+
   } catch (error) {
     console.error('❌ Erro:', error.message);
   } finally {
-    await connection.end();
+    if (connection) {
+      await connection.end();
+      console.log('\n🔌 Conexão fechada.');
+    }
   }
 }
 
-checkStatusEnum();
+checkMaintenanceSchedulesStatus();

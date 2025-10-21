@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Formulário de Equipamentos</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Teste do Formulário de Equipamentos</h1>
+    
+    <form id="equipmentForm">
+        <div class="form-group">
+            <label for="name">Nome do Equipamento *</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="patrimonio_number">Número do Patrimônio *</label>
+            <input type="text" id="patrimonio_number" name="patrimonio_number" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="manufacturer">Fabricante</label>
+            <input type="text" id="manufacturer" name="manufacturer">
+        </div>
+        
+        <div class="form-group">
+            <label for="model">Modelo</label>
+            <input type="text" id="model" name="model">
+        </div>
+        
+        <div class="form-group">
+            <label for="serial_number">Número de Série</label>
+            <input type="text" id="serial_number" name="serial_number">
+        </div>
+        
+        <div class="form-group">
+            <label for="category_id">Categoria</label>
+            <select id="category_id" name="category_id">
+                <option value="">Selecione uma categoria</option>
+                <option value="1">Categoria 1</option>
+                <option value="2">Categoria 2</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="sector_id">Setor</label>
+            <select id="sector_id" name="sector_id">
+                <option value="">Selecione um setor</option>
+                <option value="1">Setor 1</option>
+                <option value="2">Setor 2</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="subsector_id">Subsetor</label>
+            <select id="subsector_id" name="subsector_id">
+                <option value="">Selecione um subsetor</option>
+                <option value="1">Subsetor 1</option>
+                <option value="2">Subsetor 2</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="installation_date">Data de Instalação</label>
+            <input type="date" id="installation_date" name="installation_date">
+        </div>
+        
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+                <option value="manutencao">Em Manutenção</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="observations">Observações</label>
+            <textarea id="observations" name="observations" rows="3"></textarea>
+        </div>
+        
+        <button type="submit">Salvar Equipamento</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('equipmentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '⏳ Enviando dados...';
+            
+            // Coletar dados do formulário
+            const formData = new FormData(this);
+            const data = {};
+            
+            for (let [key, value] = formData.entries()) {
+                if (value.trim() !== '') {
+                    // Converter IDs para números
+                    if (key.includes('_id') && value) {
+                        data[key] = parseInt(value);
+                    } else {
+                        data[key] = value;
+                    }
+                }
+            }
+            
+            console.log('📊 Dados coletados do formulário:', data);
+            
+            try {
+                const response = await fetch('/api/equipment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                console.log('📊 Status da resposta:', response.status);
+                console.log('📊 Headers:', Object.fromEntries(response.headers.entries()));
+                
+                const responseText = await response.text();
+                console.log('📄 Resposta bruta:', responseText);
+                
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('❌ Erro ao parsear JSON:', parseError);
+                    resultDiv.innerHTML = `<div class="error">Erro ao parsear resposta: ${responseText}</div>`;
+                    return;
+                }
+                
+                if (response.ok && responseData.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Equipamento criado com sucesso!<br>
+                            ID: ${responseData.id}<br>
+                            Dados enviados: ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            ❌ Erro ao criar equipamento<br>
+                            Status: ${response.status}<br>
+                            Mensagem: ${responseData.message || 'Erro desconhecido'}<br>
+                            Erro: ${responseData.error || 'N/A'}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('❌ Erro na requisição:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ Erro de conexão: ${error.message}
+                    </div>
+                `;
+            }
+        });
+        
+        // Preencher dados de teste automaticamente
+        window.onload = function() {
+            document.getElementById('name').value = 'Equipamento Teste Frontend';
+            document.getElementById('patrimonio_number').value = 'PAT-FRONTEND-001';
+            document.getElementById('manufacturer').value = 'Fabricante Teste';
+            document.getElementById('model').value = 'Modelo Teste';
+            document.getElementById('serial_number').value = 'SN-FRONTEND-001';
+            document.getElementById('category_id').value = '1';
+            document.getElementById('sector_id').value = '1';
+            document.getElementById('subsector_id').value = '1';
+            document.getElementById('installation_date').value = '2024-01-01';
+            document.getElementById('status').value = 'ativo';
+            document.getElementById('observations').value = 'Teste do formulário frontend';
+        };
+    </script>
+</body>
+</html>

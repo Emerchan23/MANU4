@@ -39,10 +39,10 @@ export async function PUT(
     console.log('🔌 Conectando ao banco de dados...');
     connection = await mysql.createConnection(dbConfig);
     
-    // Verificar se o tipo de manutenção existe
+    // Verificar se o tipo de manutenção existe na tabela correta
     console.log('🔍 Verificando se o tipo existe...');
     const [existingRows] = await connection.execute(
-      'SELECT id FROM tipos_manutencao WHERE id = ?',
+      'SELECT id FROM maintenance_types WHERE id = ?',
       [params.id]
     );
     
@@ -54,11 +54,11 @@ export async function PUT(
       );
     }
     
-    // Atualizar o tipo de manutenção
+    // Atualizar o tipo de manutenção na tabela correta
     console.log('💾 Executando atualização...');
     const [updateResult] = await connection.execute(
-      `UPDATE tipos_manutencao 
-       SET nome = ?, ativo = ?, atualizado_em = NOW() 
+      `UPDATE maintenance_types 
+       SET name = ?, isActive = ?, updated_at = NOW() 
        WHERE id = ?`,
       [name, isActive ? 1 : 0, params.id]
     );
@@ -68,7 +68,7 @@ export async function PUT(
     // Buscar o registro atualizado
     console.log('🔍 Buscando registro atualizado...');
     const [updatedRows] = await connection.execute(
-      'SELECT id, nome as name, ativo as isActive, criado_em as createdAt, atualizado_em as updatedAt FROM tipos_manutencao WHERE id = ?',
+      'SELECT id, name, isActive, created_at as createdAt, updated_at as updatedAt FROM maintenance_types WHERE id = ?',
       [params.id]
     );
     

@@ -6,6 +6,7 @@ import { PersonalizationProvider } from "@/components/personalization-context"
 import { UserPreferencesProvider } from "@/contexts/user-preferences-context"
 import { NotificationSystemInitializer } from "@/components/notification-system-initializer"
 import { Toaster } from "@/components/ui/sonner"
+import { AuthProvider } from "@/hooks/useAuth"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,13 +29,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <UserPreferencesProvider>
-            <PersonalizationProvider>
-              <NotificationSystemInitializer />
-              {children}
-              <Toaster />
-            </PersonalizationProvider>
-          </UserPreferencesProvider>
+          <AuthProvider>
+            <UserPreferencesProvider>
+              <PersonalizationProvider>
+                <NotificationSystemInitializer />
+                {children}
+                <Toaster />
+              </PersonalizationProvider>
+            </UserPreferencesProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

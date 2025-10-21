@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { destroySession, logAccess, getCurrentUser } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = cookies();
-    const token = cookieStore.get('auth_token')?.value;
-
-    if (token) {
-      // Buscar usuário antes de destruir sessão
-      const user = await getCurrentUser(request);
-
-      // Destruir sessão no banco
-      await destroySession(token);
+    
+    // Remover cookie de autenticação (sistema simplificado)
+    const response = NextResponse.json({ 
+      success: true, 
+      message: 'Logout realizado com sucesso' 
+    });
+    
+    response.cookies.set('auth_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: new Date(0)
+    });
+    
+    return response;
 
       // Log de logout
       if (user) {

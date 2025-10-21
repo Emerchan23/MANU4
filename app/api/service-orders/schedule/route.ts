@@ -193,12 +193,16 @@ export async function POST(request: NextRequest) {
       recurrenceType = 'none',
       recurrenceInterval = 0,
       createdBy,
-      maintenancePlanId
+      maintenancePlanId,
+      recurrenceDurationType,
+      recurrenceDurationValue,
+      recurrenceEndDate
     } = body
 
     console.log('📊 Dados recebidos:', { 
       equipmentId, maintenanceType, description, scheduledDate, priority,
-      estimatedValue, companyId, observations 
+      estimatedValue, companyId, observations, recurrenceType, recurrenceInterval,
+      recurrenceDurationType, recurrenceDurationValue, recurrenceEndDate
     });
 
     // Conectar ao MariaDB
@@ -277,9 +281,10 @@ export async function POST(request: NextRequest) {
     console.log('✅ Agendamento inserido com ID:', result.insertId);
 
     // Criar agendamentos recorrentes se necessário
+    let totalCreated = 1; // Já criamos o agendamento principal
     if (recurrenceType && recurrenceType !== 'none') {
       console.log('🔄 Criando agendamentos recorrentes...');
-      await createRecurringSchedules(result.insertId, {
+      const additionalCreated = await createRecurringSchedules(result.insertId, {
         equipmentId,
         maintenanceType,
         description,
@@ -287,10 +292,15 @@ export async function POST(request: NextRequest) {
         priority: dbPriority,
         assignedTo,
         estimatedValue,
+        maintenancePlanId: maintenancePlanId && maintenancePlanId !== 'none' && maintenancePlanId !== '' ? parseInt(maintenancePlanId) : null,
         recurrenceType,
         recurrenceInterval,
-        createdBy: createdBy || 1
+        createdBy: createdBy || 1,
+        recurrenceDurationType: recurrenceDurationType || 'months',
+        recurrenceDurationValue: recurrenceDurationValue || 1,
+        recurrenceEndDate: recurrenceEndDate || null
       });
+      totalCreated += additionalCreated || 0;
     }
 
     // Buscar agendamento criado
@@ -320,7 +330,7 @@ export async function POST(request: NextRequest) {
     }
 
     const message = recurrenceType && recurrenceType !== 'none' 
-      ? `Agendamento criado com sucesso! ${12} agendamentos recorrentes foram gerados.`
+      ? `Agendamento criado com sucesso! ${totalCreated} agendamentos recorrentes foram gerados.`
       : 'Agendamento criado com sucesso!'
 
     return NextResponse.json({
@@ -342,60 +352,190 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Função para calcular datas de recorrência com duração específica
+function calculateRecurrenceDatesWithDuration(
+  startDate: Date,
+  recurrenceType: string,
+  recurrenceInterval: number,
+  durationType: string,
+  durationValue: number,
+  endDate?: Date
+): Date[] {
+  const dates: Date[] = [];
+  
+  console.log('🔄 [SCHEDULE] Calculando recorrência com duração:', {
+    startDate: startDate.toISOString(),
+    recurrenceType,
+    recurrenceInterval,
+    durationType,
+    durationValue,
+    endDate: endDate?.toISOString()
+  });
+
+  // Adicionar a primeira data
+  dates.push(new Date(startDate));
+
+  // Se não há recorrência, retornar apenas a data inicial
+  if (recurrenceType === 'none' || recurrenceType === 'única') {
+    console.log('✅ [SCHEDULE] Sem recorrência - retornando apenas data inicial');
+    return dates;
+  }
+
+  // Calcular data final baseada no tipo de duração
+  let finalDate: Date | null = null;
+  
+  if (durationType === 'months' && durationValue > 0) {
+    finalDate = new Date(startDate);
+    finalDate.setMonth(finalDate.getMonth() + durationValue);
+  } else if (durationType === 'weeks' && durationValue > 0) {
+    finalDate = new Date(startDate);
+    finalDate.setDate(finalDate.getDate() + (durationValue * 7));
+  } else if (durationType === 'end_date' && endDate) {
+    finalDate = new Date(endDate);
+  }
+
+  console.log('📅 [SCHEDULE] Data final calculada:', finalDate?.toISOString());
+
+  // Gerar datas de recorrência
+  let occurrenceCount = 1; // Já temos a primeira data
+  const maxOccurrences = durationType === 'occurrences' ? durationValue : 100;
+
+  let currentDate = new Date(startDate);
+
+  while (occurrenceCount < maxOccurrences) {
+    // Calcular próxima data baseada no tipo de recorrência
+    let nextDate = new Date(currentDate);
+    
+    switch (recurrenceType) {
+      case 'daily':
+      case 'diária':
+        nextDate.setDate(nextDate.getDate() + recurrenceInterval);
+        break;
+      case 'weekly':
+      case 'semanal':
+        nextDate.setDate(nextDate.getDate() + (recurrenceInterval * 7));
+        break;
+      case 'monthly':
+      case 'mensal':
+        nextDate.setMonth(nextDate.getMonth() + recurrenceInterval);
+        break;
+      case 'yearly':
+      case 'anual':
+        nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval);
+        break;
+      default:
+        console.log('❌ [SCHEDULE] Tipo de recorrência não reconhecido:', recurrenceType);
+        return dates;
+    }
+
+    // CORREÇÃO CRÍTICA: Verificar se deve parar ANTES de adicionar a data
+    if (durationType === 'occurrences') {
+      if (occurrenceCount >= durationValue) {
+        console.log(`✅ [SCHEDULE] Limite de ${durationValue} ocorrências atingido`);
+        break;
+      }
+    } else if (finalDate) {
+      if (nextDate > finalDate) {
+        console.log('✅ [SCHEDULE] Próxima data ultrapassaria o limite:', nextDate.toISOString(), '> finalDate:', finalDate.toISOString());
+        break;
+      }
+    } else if (durationType === 'indefinite') {
+      const oneYearFromStart = new Date(startDate);
+      oneYearFromStart.setFullYear(oneYearFromStart.getFullYear() + 1);
+      if (nextDate > oneYearFromStart) {
+        console.log('✅ [SCHEDULE] Limite de 1 ano para indefinido atingido');
+        break;
+      }
+    }
+
+    currentDate = nextDate;
+    dates.push(new Date(currentDate));
+    occurrenceCount++;
+
+    console.log(`📅 [SCHEDULE] Adicionada data ${occurrenceCount}: ${currentDate.toISOString()}`);
+
+    // Limite de segurança
+    if (dates.length > 50) {
+      console.log('⚠️ [SCHEDULE] Limite de 50 ocorrências atingido por segurança');
+      break;
+    }
+  }
+
+  console.log(`✅ [SCHEDULE] Calculadas ${dates.length} datas total`);
+  return dates;
+}
+
 // Função auxiliar para criar agendamentos recorrentes
 async function createRecurringSchedules(originalId: number, scheduleData: any) {
   let connection;
   try {
     const { 
       equipmentId, maintenanceType, description, scheduledDate, 
-      priority, assignedTo, estimatedValue, recurrenceType, recurrenceInterval, createdBy 
+      priority, assignedTo, estimatedValue, maintenancePlanId, recurrenceType, recurrenceInterval, createdBy,
+      recurrenceDurationType = 'indefinite', recurrenceDurationValue = 1, recurrenceEndDate
     } = scheduleData
+
+    console.log('🔄 [SCHEDULE] Criando agendamentos recorrentes:', {
+      recurrenceType, recurrenceInterval, recurrenceDurationType, recurrenceDurationValue
+    });
+    
+    console.log('📋 [SCHEDULE] maintenancePlanId recebido:', maintenancePlanId, 'tipo:', typeof maintenancePlanId);
 
     connection = await mysql.createConnection(dbConfig);
 
-    // Criar até 12 próximos agendamentos (1 ano)
-    let nextDate = new Date(scheduledDate)
+    // Calcular todas as datas de recorrência usando a lógica corrigida
+    const startDate = new Date(scheduledDate);
+    const endDate = recurrenceEndDate ? new Date(recurrenceEndDate) : undefined;
     
-    for (let i = 0; i < 12; i++) {
-      // Calcular próxima data baseada no tipo de recorrência
-      switch (recurrenceType) {
-        case 'daily':
-          nextDate = new Date(nextDate)
-          nextDate.setDate(nextDate.getDate() + recurrenceInterval)
-          break
-        case 'weekly':
-          nextDate = new Date(nextDate)
-          nextDate.setDate(nextDate.getDate() + (recurrenceInterval * 7))
-          break
-        case 'monthly':
-          nextDate = new Date(nextDate)
-          nextDate.setMonth(nextDate.getMonth() + recurrenceInterval)
-          break
-        case 'yearly':
-          nextDate = new Date(nextDate)
-          nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval)
-          break
-        default:
-          return
-      }
+    const recurrenceDates = calculateRecurrenceDatesWithDuration(
+      startDate,
+      recurrenceType,
+      recurrenceInterval,
+      recurrenceDurationType,
+      recurrenceDurationValue,
+      endDate
+    );
 
-      // Inserir próximo agendamento
-      await connection.execute(`
-        INSERT INTO maintenance_schedules (
-          equipment_id, description, scheduled_date, priority, 
-          assigned_user_id, estimated_cost, created_by, parent_schedule_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        equipmentId,
-        description,
-        nextDate.toISOString().slice(0, 19).replace('T', ' '),
-        priority,
-        assignedTo,
-        estimatedValue || null,
-        createdBy,
-        originalId
-      ])
+    console.log(`📅 [SCHEDULE] Criando ${recurrenceDates.length - 1} agendamentos recorrentes adicionais`);
+
+    let createdCount = 0;
+    
+    // Criar agendamentos para cada data (exceto a primeira que já foi criada)
+    for (let i = 1; i < recurrenceDates.length; i++) {
+      const nextDate = recurrenceDates[i];
+
+      try {
+        await connection.execute(`
+          INSERT INTO maintenance_schedules (
+            equipment_id, description, scheduled_date, priority, 
+            assigned_user_id, estimated_cost, created_by, maintenance_plan_id, parent_schedule_id,
+            recurrence_type, recurrence_interval
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          equipmentId,
+          description,
+          nextDate.toISOString().slice(0, 19).replace('T', ' '),
+          priority,
+          assignedTo,
+          estimatedValue || null,
+          createdBy,
+          maintenancePlanId,
+          originalId,
+          recurrenceType,
+          recurrenceInterval
+        ])
+
+        createdCount++;
+        console.log(`✅ [SCHEDULE] Agendamento recorrente ${i}/${recurrenceDates.length - 1} criado para data: ${formatDateBR(nextDate)}`);
+        
+      } catch (error) {
+        console.error(`❌ [SCHEDULE] Erro ao criar agendamento recorrente ${i}:`, error);
+        break;
+      }
     }
+
+    console.log(`✅ [SCHEDULE] Total de ${createdCount} agendamentos recorrentes criados (${recurrenceDates.length} total incluindo o principal)`);
+    return createdCount;
   } catch (error) {
     console.error('❌ Erro ao criar agendamentos recorrentes:', error)
   } finally {

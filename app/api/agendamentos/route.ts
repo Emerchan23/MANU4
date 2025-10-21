@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 
+// Função para normalizar tipos de recorrência
+function normalizeRecurrenceType(type: string): string {
+  const typeMap: { [key: string]: string } = {
+    'none': 'none',
+    'nao_repetir': 'none',
+    'única': 'none',
+    'daily': 'daily',
+    'diariamente': 'daily',
+    'diária': 'daily',
+    'todos_os_dias': 'daily',
+    'weekly': 'weekly',
+    'semanalmente': 'weekly',
+    'semanal': 'weekly',
+    'a_cada_semana': 'weekly',
+    'monthly': 'monthly',
+    'mensalmente': 'monthly',
+    'mensal': 'monthly',
+    'a_cada_mes': 'monthly',
+    'yearly': 'yearly',
+    'anualmente': 'yearly',
+    'anual': 'yearly',
+    'a_cada_ano': 'yearly'
+  };
+  
+  const normalized = typeMap[type.toLowerCase()] || type;
+  console.log(`🔄 [NORMALIZE] "${type}" -> "${normalized}"`);
+  return normalized;
+}
+
 // Configuração do banco de dados
 const dbConfig = {
   host: 'localhost',
@@ -39,6 +68,11 @@ export async function GET(request: NextRequest) {
     const end_date = searchParams.get('end_date');
     const priority = searchParams.get('priority');
     const search = searchParams.get('search');
+
+    console.log('📊 [AGENDAMENTOS API] Parâmetros recebidos:', {
+      page, limit, status, equipment_id, assigned_user_id, 
+      start_date, end_date, priority, search
+    });
 
     const offset = (page - 1) * limit;
     let whereConditions = [];
@@ -88,7 +122,9 @@ export async function GET(request: NextRequest) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
+    console.log('🔗 [AGENDAMENTOS API] Conectando ao banco de dados...');
     connection = await mysql.createConnection(dbConfig);
+    console.log('✅ [AGENDAMENTOS API] Conexão estabelecida com sucesso');
 
     // Query principal para buscar agendamentos
     const mainQuery = `
@@ -97,7 +133,7 @@ export async function GET(request: NextRequest) {
         e.name as equipment_name,
         e.model as equipment_model,
         e.serial_number as equipment_serial,
-        e.patrimonio as equipment_patrimonio_number,
+        e.patrimonio_number as equipment_patrimonio_number,
         u.full_name as assigned_user_name,
         u.email as assigned_user_email,
         creator.full_name as created_by_name,
@@ -125,16 +161,24 @@ export async function GET(request: NextRequest) {
       ${whereClause}
     `;
 
-    console.log('🔍 [AGENDAMENTOS API] Executando query:', mainQuery);
-    console.log('🔍 [AGENDAMENTOS API] Parâmetros:', [...queryParams, limit, offset]);
+    console.log('🔍 [AGENDAMENTOS API] Executando query principal:', mainQuery);
+    console.log('🔍 [AGENDAMENTOS API] Parâmetros da query principal:', [...queryParams, limit, offset]);
 
     const [schedules] = await connection.execute(mainQuery, [...queryParams, limit, offset]);
+    console.log('✅ [AGENDAMENTOS API] Query principal executada com sucesso');
+    
+    console.log('🔍 [AGENDAMENTOS API] Executando query de contagem:', countQuery);
+    console.log('🔍 [AGENDAMENTOS API] Parâmetros da query de contagem:', queryParams);
+    
     const [countResult] = await connection.execute(countQuery, queryParams);
+    console.log('✅ [AGENDAMENTOS API] Query de contagem executada com sucesso');
+    
     const total = (countResult as any)[0]?.total || 0;
 
-    console.log(`📊 [AGENDAMENTOS API] Encontrados ${(schedules as any[]).length} agendamentos`);
+    console.log(`📊 [AGENDAMENTOS API] Encontrados ${(schedules as any[]).length} agendamentos de um total de ${total}`);
 
     // Formatar datas e adicionar informações extras
+    console.log('🔄 [AGENDAMENTOS API] Formatando dados dos agendamentos...');
     const formattedSchedules = (schedules as any[]).map(item => ({
       ...item,
       scheduled_date: formatDateBR(item.scheduled_date),
@@ -143,6 +187,9 @@ export async function GET(request: NextRequest) {
       updated_at: formatDateBR(item.updated_at),
       is_overdue: new Date(item.scheduled_date) < new Date() && item.status === 'pending'
     }));
+
+    console.log('✅ [AGENDAMENTOS API] Dados formatados com sucesso');
+    console.log('📤 [AGENDAMENTOS API] Retornando resposta para o cliente');
 
     return NextResponse.json({
       success: true,
@@ -157,18 +204,150 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ [AGENDAMENTOS API] Erro ao buscar agendamentos:', error);
+    console.error('❌ [AGENDAMENTOS API] Stack trace:', (error as Error).stack);
+    console.error('❌ [AGENDAMENTOS API] Tipo do erro:', typeof error);
+    console.error('❌ [AGENDAMENTOS API] Propriedades do erro:', Object.keys(error as any));
+    
     return NextResponse.json({
       success: false,
       error: 'Erro interno do servidor ao buscar agendamentos'
     }, { status: 500 });
   } finally {
     if (connection) {
+      console.log('🔌 [AGENDAMENTOS API] Fechando conexão com o banco de dados');
       await connection.end();
+      console.log('✅ [AGENDAMENTOS API] Conexão fechada com sucesso');
     }
   }
 }
 
 // POST - Criar novo agendamento
+// Função para calcular datas de recorrência
+function calculateRecurrenceDates(
+  startDate: Date,
+  recurrenceType: string,
+  recurrenceInterval: number,
+  durationType: string,
+  durationValue: number,
+  endDate?: Date
+): Date[] {
+  const dates: Date[] = [];
+  
+  console.log('🔄 [RECORRÊNCIA] Iniciando cálculo:', {
+    startDate: startDate.toISOString(),
+    recurrenceType,
+    recurrenceInterval,
+    durationType,
+    durationValue,
+    endDate: endDate?.toISOString()
+  });
+
+  // Adicionar a primeira data
+  dates.push(new Date(startDate));
+  console.log('📅 [RECORRÊNCIA] Primeira data adicionada:', startDate.toISOString());
+
+  // Se não há recorrência, retornar apenas a data inicial
+  if (recurrenceType === 'none' || recurrenceType === 'única' || recurrenceType === 'nao_repetir') {
+    console.log('✅ [RECORRÊNCIA] Sem recorrência - retornando apenas data inicial');
+    return dates;
+  }
+
+  // Normalizar tipo de recorrência para garantir compatibilidade
+  const normalizedType = normalizeRecurrenceType(recurrenceType);
+  console.log('🔄 [RECORRÊNCIA] Tipo normalizado:', normalizedType);
+
+  // Calcular data final baseada no tipo de duração
+  let finalDate: Date | null = null;
+  
+  if (durationType === 'months' && durationValue > 0) {
+    finalDate = new Date(startDate);
+    finalDate.setMonth(finalDate.getMonth() + durationValue);
+  } else if (durationType === 'weeks' && durationValue > 0) {
+    finalDate = new Date(startDate);
+    finalDate.setDate(finalDate.getDate() + (durationValue * 7));
+  } else if (durationType === 'end_date' && endDate) {
+    finalDate = new Date(endDate);
+  }
+
+  console.log('📅 Data final calculada:', finalDate?.toISOString());
+
+  // Gerar datas de recorrência
+  let occurrenceCount = 1; // Já temos a primeira data
+  const maxOccurrences = durationType === 'occurrences' ? durationValue : 100; // Limite de segurança reduzido
+
+  // CORREÇÃO: Usar uma nova instância de data para cada iteração
+  let currentDate = new Date(startDate);
+
+  while (occurrenceCount < maxOccurrences) {
+    // CORREÇÃO: Calcular próxima data baseada no tipo de recorrência
+    // Criar uma nova data para evitar mutação da data anterior
+    let nextDate = new Date(currentDate);
+    
+    switch (normalizedType) {
+      case 'daily':
+        nextDate.setDate(nextDate.getDate() + recurrenceInterval);
+        console.log(`📅 [RECORRÊNCIA] Calculando próxima data diária: +${recurrenceInterval} dias`);
+        break;
+      case 'weekly':
+        nextDate.setDate(nextDate.getDate() + (recurrenceInterval * 7));
+        console.log(`📅 [RECORRÊNCIA] Calculando próxima data semanal: +${recurrenceInterval * 7} dias`);
+        break;
+      case 'monthly':
+        nextDate.setMonth(nextDate.getMonth() + recurrenceInterval);
+        console.log(`📅 [RECORRÊNCIA] Calculando próxima data mensal: +${recurrenceInterval} meses`);
+        break;
+      case 'yearly':
+        nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval);
+        console.log(`📅 [RECORRÊNCIA] Calculando próxima data anual: +${recurrenceInterval} anos`);
+        break;
+      default:
+        console.log('❌ [RECORRÊNCIA] Tipo não reconhecido após normalização:', normalizedType, 'original:', recurrenceType);
+        return dates;
+    }
+
+    // Atualizar currentDate para a próxima iteração
+    currentDate = nextDate;
+
+    // Verificar se deve parar baseado no tipo de duração
+    if (durationType === 'occurrences') {
+      // Para número específico de ocorrências
+      if (occurrenceCount >= durationValue) {
+        console.log(`✅ Limite de ${durationValue} ocorrências atingido`);
+        break;
+      }
+    } else if (finalDate) {
+      // Para duração por tempo ou data específica
+      if (currentDate > finalDate) {
+        console.log('✅ Data final atingida:', finalDate.toISOString());
+        break;
+      }
+    } else if (durationType === 'indefinite') {
+      // Para indefinido, criar apenas algumas ocorrências (ex: próximos 12 meses)
+      const oneYearFromStart = new Date(startDate);
+      oneYearFromStart.setFullYear(oneYearFromStart.getFullYear() + 1);
+      if (currentDate > oneYearFromStart) {
+        console.log('✅ Limite de 1 ano para indefinido atingido');
+        break;
+      }
+    }
+
+    dates.push(new Date(currentDate));
+    occurrenceCount++;
+
+    console.log(`📅 [RECORRÊNCIA] Adicionada data ${occurrenceCount}: ${currentDate.toISOString()}`);
+
+    // Limite de segurança para evitar loops infinitos
+    if (dates.length > 50) {
+      console.log('⚠️ [RECORRÊNCIA] Limite de 50 ocorrências atingido por segurança');
+      break;
+    }
+  }
+
+  console.log(`✅ [RECORRÊNCIA] Calculadas ${dates.length} datas total para tipo "${normalizedType}"`);
+  console.log('📋 [RECORRÊNCIA] Datas calculadas:', dates.map(d => d.toISOString()));
+  return dates;
+}
+
 export async function POST(request: NextRequest) {
   let connection;
   
@@ -189,7 +368,12 @@ export async function POST(request: NextRequest) {
       created_by = 1, // TODO: Pegar do contexto de autenticação
       maintenance_plan_id,
       company_id,
-      observations
+      observations,
+      recurrenceType = 'none',
+      recurrenceInterval = 1,
+      recurrenceEndDate,
+      recurrenceDurationType = 'indefinite',
+      recurrenceDurationValue = 1
     } = body;
 
     // Validações básicas
@@ -230,33 +414,73 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Inserir agendamento
+    // Calcular datas de recorrência
+    const startDate = new Date(scheduled_date);
+    const endDate = recurrenceEndDate ? new Date(recurrenceEndDate) : undefined;
+    
+    const recurrenceDates = calculateRecurrenceDates(
+      startDate,
+      recurrenceType,
+      recurrenceInterval,
+      recurrenceDurationType,
+      recurrenceDurationValue,
+      endDate
+    );
+
+    console.log(`📅 Criando ${recurrenceDates.length} agendamentos`);
+
+    // Preparar query de inserção
     const insertQuery = `
       INSERT INTO maintenance_schedules (
         equipment_id, maintenance_type, description, scheduled_date, 
         priority, assigned_user_id, estimated_cost, created_by, 
-        maintenance_plan_id, company_id, observations
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        maintenance_plan_id, company_id, observations, status,
+        recurrence_type, recurrence_interval, recurrence_end_date,
+        recurrence_duration_type, recurrence_duration_value, parent_schedule_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const [result] = await connection.execute(insertQuery, [
-      equipment_id,
-      maintenance_type,
-      description,
-      formatDateISO(scheduled_date),
-      priority,
-      assigned_user_id || null,
-      estimated_cost || null,
-      created_by,
-      maintenance_plan_id || null,
-      company_id || null,
-      observations || null
-    ]);
+    const createdSchedules = [];
+    let parentScheduleId = null;
 
-    const insertId = (result as any).insertId;
-    console.log('✅ [AGENDAMENTOS API] Agendamento criado com ID:', insertId);
+    // Criar agendamentos para cada data calculada
+    for (let i = 0; i < recurrenceDates.length; i++) {
+      const currentDate = recurrenceDates[i];
+      const isParent = i === 0; // O primeiro agendamento é o "pai"
+      
+      const [result] = await connection.execute(insertQuery, [
+        equipment_id,
+        maintenance_type,
+        description,
+        formatDateISO(currentDate),
+        priority,
+        assigned_user_id || null,
+        estimated_cost || null,
+        created_by,
+        maintenance_plan_id || null,
+        company_id || null,
+        observations || null,
+        'AGENDADA',
+        recurrenceType,
+        recurrenceInterval,
+        recurrenceEndDate ? formatDateISO(recurrenceEndDate) : null,
+        recurrenceDurationType,
+        recurrenceDurationValue,
+        isParent ? null : parentScheduleId // Agendamentos filhos referenciam o pai
+      ]);
 
-    // Buscar o agendamento criado com dados completos
+      const insertId = (result as any).insertId;
+      
+      // O primeiro agendamento criado é o pai
+      if (isParent) {
+        parentScheduleId = insertId;
+      }
+
+      console.log(`✅ Agendamento ${i + 1}/${recurrenceDates.length} criado com ID: ${insertId}`);
+      createdSchedules.push(insertId);
+    }
+
+    // Buscar o agendamento principal (pai) com dados completos
     const [createdSchedule] = await connection.execute(`
       SELECT 
         ms.*,
@@ -269,7 +493,7 @@ export async function POST(request: NextRequest) {
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN users creator ON ms.created_by = creator.id
       WHERE ms.id = ?
-    `, [insertId]);
+    `, [parentScheduleId]);
 
     const schedule = (createdSchedule as any[])[0];
     const formattedSchedule = {
@@ -277,13 +501,19 @@ export async function POST(request: NextRequest) {
       scheduled_date: formatDateBR(schedule.scheduled_date),
       completion_date: schedule.completion_date ? formatDateBR(schedule.completion_date) : null,
       created_at: formatDateBR(schedule.created_at),
-      updated_at: formatDateBR(schedule.updated_at)
+      updated_at: formatDateBR(schedule.updated_at),
+      total_occurrences: createdSchedules.length
     };
+
+    const message = recurrenceDates.length > 1 
+      ? `Agendamento recorrente criado com sucesso! ${recurrenceDates.length} ocorrências geradas.`
+      : 'Agendamento criado com sucesso';
 
     return NextResponse.json({
       success: true,
       data: formattedSchedule,
-      message: 'Agendamento criado com sucesso'
+      message,
+      created_schedules: createdSchedules
     });
 
   } catch (error) {

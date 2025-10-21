@@ -373,10 +373,10 @@ export default function EditarAgendamento() {
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="preventiva">Preventiva</SelectItem>
-                      <SelectItem value="corretiva">Corretiva</SelectItem>
-                      <SelectItem value="preditiva">Preditiva</SelectItem>
-                      <SelectItem value="emergencial">Emergencial</SelectItem>
+                      <SelectItem value="PREVENTIVA">Preventiva</SelectItem>
+                      <SelectItem value="CORRETIVA">Corretiva</SelectItem>
+                      <SelectItem value="PREDITIVA">Preditiva</SelectItem>
+                      <SelectItem value="EMERGENCIAL">Emergencial</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

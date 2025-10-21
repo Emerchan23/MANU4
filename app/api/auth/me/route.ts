@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
-    // Obter token do cookie
-    const authToken = request.cookies.get('auth_token')?.value
-    
-    if (!authToken) {
-      return NextResponse.json(
-        { success: false, error: "Token de autenticação não encontrado" },
-        { status: 401 }
-      )
-    }
+    // Sistema de autenticação simplificado removido
+    return NextResponse.json(
+      { error: 'Endpoint desabilitado - sistema de autenticação simplificado' },
+      { status: 501 }
+    );
 
     // Verificar e decodificar o token
     const decoded = await verifyToken(authToken)

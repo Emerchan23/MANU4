@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 
 // Database connection configuration
@@ -21,7 +21,10 @@ export async function GET(request: Request) {
 
     const offset = (page - 1) * limit
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     // Construir condições WHERE dinamicamente
     let whereConditions = []
@@ -60,13 +63,16 @@ export async function GET(request: Request) {
       ? (countResult[0] as any).total 
       : 0
 
+    // Definir charset UTF-8 para a conexão
+    await connection.execute('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci')
+    
     // Query principal com paginação
     const mainQuery = `
       SELECT 
         st.id,
-        st.name,
-        st.description,
-        st.content,
+        CONVERT(st.name USING utf8mb4) as name,
+        CONVERT(st.description USING utf8mb4) as description,
+        CONVERT(st.content USING utf8mb4) as content,
         st.category_id,
         st.is_active as active,
         st.created_at,
@@ -125,7 +131,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     // Verificar se já existe um template com o mesmo nome
     const [existing] = await connection.execute(
@@ -185,9 +194,20 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT - Atualizar template de serviço
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
   try {
-    const body = await request.json()
+    // Ler o body da requisição usando método alternativo para evitar conflito
+    let body;
+    try {
+      const bodyText = await request.text();
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('❌ Erro ao processar body:', parseError);
+      return NextResponse.json(
+        { success: false, error: 'Dados inválidos na requisição' },
+        { status: 400 }
+      );
+    }
     const {
       id,
       name,
@@ -203,7 +223,10 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     // Verificar se o template existe
     const [existing] = await connection.execute(

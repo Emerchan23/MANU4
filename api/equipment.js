@@ -26,6 +26,7 @@ const getEquipments = async (req, res) => {
         e.updated_at,
         e.location,
         e.is_active,
+        e.voltage,
         s.name as sector_name,
         c.name as category_name,
         sub.name as subsector_name
@@ -60,6 +61,7 @@ const getEquipments = async (req, res) => {
       updated_at: equipment.updated_at,
       location: equipment.location,
       is_active: equipment.is_active,
+      voltage: equipment.voltage,
       // Campos relacionados (joins)
       sector_name: equipment.sector_name,
       category_name: equipment.category_name,
@@ -124,8 +126,12 @@ const getEquipmentById = async (req, res) => {
 // Criar novo equipamento
 const createEquipment = async (req, res) => {
   try {
+    console.log('🔄 [EQUIPMENT API] Criando novo equipamento...');
+    console.log('📊 [EQUIPMENT API] Dados recebidos:', req.body);
+    
     const {
       name,
+      patrimonio,
       model,
       serial_number,
       manufacturer,
@@ -134,41 +140,48 @@ const createEquipment = async (req, res) => {
       subsector_id,
       installation_date,
       maintenance_frequency_days,
+      warranty_expiry,
+      status,
       observations,
-      patrimonio_number,
-      voltage
+      voltage,
+      power,
+      maintenance_frequency
     } = req.body;
 
     // Validações básicas
-    if (!name || !sector_id) {
+    if (!name) {
       return res.status(400).json({
         success: false,
-        message: 'Nome e setor são obrigatórios'
+        message: 'Nome é obrigatório'
       });
     }
 
     const queryStr = `
       INSERT INTO equipment (
-        name, model, serial_number, manufacturer, sector_id, category_id,
-        subsector_id, installation_date, maintenance_frequency_days,
-        observations, patrimonio_number, voltage, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ativo', NOW(), NOW())
+        name, patrimony, code, model, serial_number, manufacturer, sector_id, category_id,
+        subsector_id, acquisition_date, maintenance_frequency_days, warranty_expiry, status, observations, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await query(queryStr, [
       name,
+      patrimonio || null, // patrimony
+      patrimonio || null, // code (using same value as patrimony)
       model || null,
       serial_number || null,
       manufacturer || null,
-      sector_id,
+      sector_id || null,
       category_id || null,
       subsector_id || null,
-      installation_date || null,
+      installation_date || null, // acquisition_date
       maintenance_frequency_days || null,
+      warranty_expiry || null,
+      status || 'ativo',
       observations || null,
-      patrimonio_number || null,
-      voltage || null
+      1 // is_active = true
     ]);
+
+    console.log('✅ [EQUIPMENT API] Equipamento criado com ID:', result.insertId);
 
     // Buscar o equipamento criado
     const newEquipment = await query(
@@ -179,13 +192,16 @@ const createEquipment = async (req, res) => {
     res.status(201).json({
       success: true,
       data: newEquipment[0],
+      id: result.insertId,
       message: 'Equipamento criado com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao criar equipamento:', error);
+    console.error('❌ [EQUIPMENT API] Erro ao criar equipamento:', error);
+    console.error('❌ [EQUIPMENT API] Stack trace:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Erro interno do servidor'
+      message: 'Erro interno do servidor',
+      error: error.message
     });
   }
 };
@@ -193,6 +209,10 @@ const createEquipment = async (req, res) => {
 // Atualizar equipamento
 const updateEquipment = async (req, res) => {
   try {
+    console.log('🔄 [UPDATE EQUIPMENT] Iniciando atualização...');
+    console.log('📊 [UPDATE EQUIPMENT] Params:', req.params);
+    console.log('📊 [UPDATE EQUIPMENT] Body recebido:', req.body);
+    
     const { id } = req.params;
     const {
       name,
@@ -212,6 +232,7 @@ const updateEquipment = async (req, res) => {
 
     // Validações básicas
     if (!name || !sector_id) {
+      console.log('❌ [UPDATE EQUIPMENT] Validação falhou - nome ou setor ausente');
       return res.status(400).json({
         success: false,
         message: 'Nome e setor são obrigatórios'
@@ -219,25 +240,28 @@ const updateEquipment = async (req, res) => {
     }
 
     // Verificar se o equipamento existe
+    console.log('🔍 [UPDATE EQUIPMENT] Verificando se equipamento existe...');
     const existing = await query('SELECT id FROM equipment WHERE id = ?', [id]);
     if (existing.length === 0) {
+      console.log('❌ [UPDATE EQUIPMENT] Equipamento não encontrado');
       return res.status(404).json({
         success: false,
         message: 'Equipamento não encontrado'
       });
     }
 
+    console.log('✅ [UPDATE EQUIPMENT] Equipamento encontrado, executando update...');
+    
     const queryStr = `
       UPDATE equipment SET
         name = ?, model = ?, serial_number = ?, manufacturer = ?,
         sector_id = ?, category_id = ?, subsector_id = ?,
-        installation_date = ?, maintenance_frequency_days = ?,
-        observations = ?, patrimonio_number = ?, voltage = ?, status = ?,
-        updated_at = NOW()
+        acquisition_date = ?, maintenance_frequency_days = ?, observations = ?, 
+        patrimony = ?, status = ?, updated_at = NOW()
       WHERE id = ?
     `;
 
-    await query(queryStr, [
+    const updateParams = [
       name,
       model || null,
       serial_number || null,
@@ -245,14 +269,19 @@ const updateEquipment = async (req, res) => {
       sector_id,
       category_id || null,
       subsector_id || null,
-      installation_date || null,
+      installation_date || null, // acquisition_date
       maintenance_frequency_days || null,
       observations || null,
       patrimonio_number || null,
-      voltage || null,
       status || 'ativo',
       id
-    ]);
+    ];
+    
+    console.log('📊 [UPDATE EQUIPMENT] Parâmetros do update:', updateParams);
+
+    await query(queryStr, updateParams);
+    
+    console.log('✅ [UPDATE EQUIPMENT] Update executado com sucesso');
 
     // Buscar o equipamento atualizado
     const updatedEquipment = await query(
@@ -260,13 +289,15 @@ const updateEquipment = async (req, res) => {
       [id]
     );
 
+    console.log('📊 [UPDATE EQUIPMENT] Equipamento atualizado:', updatedEquipment[0]);
+
     res.json({
       success: true,
       data: updatedEquipment[0],
       message: 'Equipamento atualizado com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao atualizar equipamento:', error);
+    console.error('❌ [UPDATE EQUIPMENT] Erro ao atualizar equipamento:', error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

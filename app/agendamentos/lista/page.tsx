@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PriorityFilterSelect } from '@/components/ui/priority-select'
 import { MainLayout } from '@/components/layout/main-layout'
@@ -316,7 +317,7 @@ export default function AgendamentosListaPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: 'concluido'
+          status: 'CONCLUIDA'
         })
       })
 
@@ -353,6 +354,12 @@ export default function AgendamentosListaPage() {
       case 'OS_GERADA': return 'OS Gerada'
       case 'OVERDUE': return 'Em Atraso'
       case 'CANCELLED': return 'Cancelado'
+      // Status do banco de dados
+      case 'AGENDADA': return 'Agendada'
+      case 'EM_ANDAMENTO': return 'Em Andamento'
+      case 'CONCLUIDA': return 'Concluída'
+      case 'CANCELADA': return 'Cancelada'
+      case 'CONVERTIDA': return 'Convertida'
       default: return status
     }
   }
@@ -366,6 +373,12 @@ export default function AgendamentosListaPage() {
       case 'OS_GERADA': return 'bg-purple-100 text-purple-800'
       case 'OVERDUE': return 'bg-red-100 text-red-800'
       case 'CANCELLED': return 'bg-red-100 text-red-800'
+      // Status do banco de dados
+      case 'AGENDADA': return 'bg-blue-100 text-blue-800'
+      case 'EM_ANDAMENTO': return 'bg-amber-100 text-amber-800'
+      case 'CONCLUIDA': return 'bg-green-100 text-green-800'
+      case 'CANCELADA': return 'bg-red-100 text-red-800'
+      case 'CONVERTIDA': return 'bg-purple-100 text-purple-800'
       // Status em português (ordens de serviço)
       case 'aberta': return 'bg-blue-100 text-blue-800'
       case 'em_andamento': return 'bg-amber-100 text-amber-800'
@@ -377,6 +390,7 @@ export default function AgendamentosListaPage() {
 
   // Função para traduzir prioridade de inglês para português
   const translatePriority = (priority: string) => {
+    if (!priority) return 'Não definida'
     switch (priority.toLowerCase()) {
       case 'critical': return 'Crítica'
       case 'high': return 'Alta'
@@ -387,6 +401,7 @@ export default function AgendamentosListaPage() {
   }
 
   const getPriorityColor = (priority: string) => {
+    if (!priority) return 'bg-gray-100 text-gray-800'
     switch (priority.toLowerCase()) {
       case 'critical': return 'bg-red-100 text-red-800'
       case 'high': return 'bg-orange-100 text-orange-800'
@@ -420,22 +435,30 @@ export default function AgendamentosListaPage() {
       <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Lista de Agendamentos</h1>
-          <p className="text-gray-600 mt-1">
-            {searchTerm ? (
-              <>
-                {filteredSchedules.length} de {totalCount} agendamento{filteredSchedules.length !== 1 ? 's' : ''} encontrado{filteredSchedules.length !== 1 ? 's' : ''}
-                {filteredSchedules.length !== totalCount && (
-                  <span className="text-blue-600 ml-1">(filtrado por busca)</span>
-                )}
-              </>
-            ) : (
-              <>
-                {totalCount} agendamento{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
-              </>
-            )}
-          </p>
+        <div className="flex items-center gap-4">
+          <Link href="/agendamentos">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar para Agendamentos
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Lista de Agendamentos</h1>
+            <p className="text-gray-600 mt-1">
+              {searchTerm ? (
+                <>
+                  {filteredSchedules.length} de {totalCount} agendamento{filteredSchedules.length !== 1 ? 's' : ''} encontrado{filteredSchedules.length !== 1 ? 's' : ''}
+                  {filteredSchedules.length !== totalCount && (
+                    <span className="text-blue-600 ml-1">(filtrado por busca)</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {totalCount} agendamento{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
+                </>
+              )}
+            </p>
+          </div>
         </div>
         <div className="flex gap-3">
           <Button onClick={() => setShowFilters(!showFilters)} variant="outline">
@@ -568,10 +591,10 @@ export default function AgendamentosListaPage() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Data Inicial</label>
-                <Input
-                  type="date"
+                <DateInput
                   value={filters.date_from || ''}
-                  onChange={(e) => handleFilterChange('date_from', e.target.value)}
+                  onChange={(value) => handleFilterChange('date_from', value)}
+                  placeholder="dd/mm/aaaa"
                 />
               </div>
             </div>
@@ -655,7 +678,8 @@ export default function AgendamentosListaPage() {
             <>
               {/* Table Header */}
               <div className="border-b bg-gray-50 px-6 py-3">
-                <div className={`grid gap-4 items-center text-sm font-medium text-gray-700 ${hasAssignedTechnicians ? 'grid-cols-12' : 'grid-cols-11'}`}>
+                <div className={`grid gap-4 items-center text-sm font-medium text-gray-700 ${hasAssignedTechnicians ? 'grid-cols-13' : 'grid-cols-12'}`}>
+                  <div className="col-span-1">Nº</div>
                   <div className="col-span-1">
                     <input
                       type="checkbox"
@@ -676,9 +700,14 @@ export default function AgendamentosListaPage() {
 
               {/* Table Body */}
               <div className="divide-y">
-                {filteredSchedules.map((schedule) => (
+                {filteredSchedules.map((schedule, index) => (
                   <div key={schedule.id} className="px-6 py-4 hover:bg-gray-50">
-                    <div className={`grid gap-4 items-center ${hasAssignedTechnicians ? 'grid-cols-12' : 'grid-cols-11'}`}>
+                    <div className={`grid gap-4 items-center ${hasAssignedTechnicians ? 'grid-cols-13' : 'grid-cols-12'}`}>
+                      <div className="col-span-1">
+                        <span className="text-sm font-medium text-gray-600">
+                          {(currentPage - 1) * (filters.limit || 20) + index + 1}
+                        </span>
+                      </div>
                       <div className="col-span-1">
                         <input
                           type="checkbox"
@@ -767,8 +796,8 @@ export default function AgendamentosListaPage() {
 
                       <div className="col-span-2">
                         <div className="flex items-center gap-2 justify-start max-w-full overflow-hidden">
-                          {/* Botão Aprovar - aparece para status SCHEDULED, IN_PROGRESS, agendado, em_andamento ou os_gerada */}
-                          {(schedule.status === 'SCHEDULED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'agendado' || schedule.status === 'em_andamento' || schedule.status === 'os_gerada') && (
+                          {/* Botão Aprovar - aparece para status SCHEDULED, IN_PROGRESS, agendado, em_andamento, os_gerada, AGENDADA ou EM_ANDAMENTO */}
+                          {(schedule.status === 'SCHEDULED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'agendado' || schedule.status === 'em_andamento' || schedule.status === 'os_gerada' || schedule.status === 'AGENDADA' || schedule.status === 'EM_ANDAMENTO') && (
                             <Button
                               size="sm"
                               variant="default"
@@ -785,8 +814,8 @@ export default function AgendamentosListaPage() {
                             </Button>
                           )}
 
-                          {/* Botão Converter em OS - aparece para status COMPLETED ou agendamentos concluídos */}
-                          {(schedule.status === 'COMPLETED' || schedule.status === 'concluido' || schedule.status === '') && (
+                          {/* Botão Converter em OS - aparece para status COMPLETED, CONCLUIDA ou agendamentos concluídos */}
+                          {(schedule.status === 'COMPLETED' || schedule.status === 'CONCLUIDA' || schedule.status === 'concluido' || schedule.status === '') && (
                             <Button
                               size="sm"
                               variant="default"

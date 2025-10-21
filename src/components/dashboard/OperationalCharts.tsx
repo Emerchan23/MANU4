@@ -46,7 +46,7 @@ export function OperationalCharts({
   }
 
   // Transform monthly stats for chart
-  const monthlyChartData = monthlyStats.map(stat => ({
+  const monthlyChartData = (monthlyStats || []).map(stat => ({
     month: stat.month,
     Agendadas: stat.total_scheduled,
     Concluídas: stat.completed,
@@ -55,14 +55,14 @@ export function OperationalCharts({
   }));
 
   // Transform cost analysis for pie chart
-  const costChartData = costAnalysis.map(item => ({
+  const costChartData = (costAnalysis || []).map(item => ({
     name: item.sector_name,
     value: item.total_estimated_cost,
     count: item.total_maintenances,
   }));
 
   // Transform company performance for bar chart
-  const performanceChartData = companyPerformance.map(company => ({
+  const performanceChartData = (companyPerformance || []).map(company => ({
     name: company.company_name,
     'Taxa de Conclusão': company.completion_rate,
     'Total de Agendamentos': company.total_schedules,
@@ -165,19 +165,19 @@ export function OperationalCharts({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">
-              {monthlyStats.reduce((acc, stat) => acc + stat.total_scheduled, 0)}
+              {(monthlyStats || []).reduce((acc, stat) => acc + stat.total_scheduled, 0)}
             </div>
             <div className="text-sm text-blue-800">Total Agendado (6 meses)</div>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <div className="text-2xl font-bold text-green-600">
-              {monthlyStats.reduce((acc, stat) => acc + stat.completed, 0)}
+              {(monthlyStats || []).reduce((acc, stat) => acc + stat.completed, 0)}
             </div>
             <div className="text-sm text-green-800">Total Concluído</div>
           </div>
           <div className="text-center p-4 bg-red-50 rounded-lg">
             <div className="text-2xl font-bold text-red-600">
-              {monthlyStats.reduce((acc, stat) => acc + stat.overdue, 0)}
+              {(monthlyStats || []).reduce((acc, stat) => acc + stat.overdue, 0)}
             </div>
             <div className="text-sm text-red-800">Total em Atraso</div>
           </div>

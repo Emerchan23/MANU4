@@ -1,72 +1,82 @@
-// Teste direto da função getEquipments para identificar o erro
+const mysql = require('mysql2/promise');
 
-async function testEquipmentAPIDirect() {
-  console.log('🔍 Teste Direto da Função getEquipments');
-  console.log('======================================');
+const dbConfig = {
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'hospital_maintenance',
+  charset: 'utf8mb4',
+  timezone: '+00:00'
+};
 
+async function testUpdateEquipment() {
+  let connection;
+  
   try {
-    console.log('\n1. Carregando variáveis de ambiente...');
-    require('dotenv').config();
-    console.log('✅ Variáveis carregadas');
-
-    console.log('\n2. Importando módulo equipment.js...');
-    const { getEquipments } = await import('./api/equipment.js');
-    console.log('✅ Módulo importado com sucesso');
-    console.log('✅ Função getEquipments:', typeof getEquipments);
-
-    console.log('\n3. Criando objetos mock req e res...');
+    console.log('🔗 Conectando ao banco de dados...');
+    connection = await mysql.createConnection(dbConfig);
     
-    // Mock request object
-    const mockReq = {
-      query: {},
-      params: {},
-      body: {}
-    };
-
-    let responseData = null;
-    let statusCode = 200;
-    let errorOccurred = false;
-
-    // Mock response object
-    const mockRes = {
-      json: (data) => {
-        console.log('📊 mockRes.json chamado com:', JSON.stringify(data, null, 2));
-        responseData = data;
-      },
-      status: (code) => {
-        console.log('📊 mockRes.status chamado com:', code);
-        statusCode = code;
-        if (code >= 400) {
-          errorOccurred = true;
-        }
-        return {
-          json: (data) => {
-            console.log('📊 mockRes.status().json chamado com:', JSON.stringify(data, null, 2));
-            responseData = data;
-          }
-        };
-      }
-    };
-
-    console.log('\n4. Executando getEquipments...');
-    await getEquipments(mockReq, mockRes);
-
-    console.log('\n5. Resultado final:');
-    console.log('Status Code:', statusCode);
-    console.log('Error Occurred:', errorOccurred);
-    console.log('Response Data:', responseData);
-
-    if (responseData && responseData.success) {
-      console.log('✅ API funcionou corretamente!');
-      console.log('Total de equipamentos:', responseData.data ? responseData.data.length : 0);
-    } else {
-      console.log('❌ API retornou erro:', responseData);
+    console.log('✅ Conectado com sucesso!');
+    
+    // Primeiro, vamos verificar se o equipamento ID 17 existe
+    console.log('🔍 Verificando se equipamento ID 17 existe...');
+    const [existing] = await connection.execute('SELECT id, name FROM equipment WHERE id = ?', [17]);
+    
+    if (existing.length === 0) {
+      console.log('❌ Equipamento ID 17 não encontrado');
+      return;
     }
+    
+    console.log('✅ Equipamento encontrado:', existing[0]);
+    
+    // Agora vamos tentar fazer o update
+    console.log('🔄 Executando UPDATE...');
+    
+    const queryStr = `
+      UPDATE equipment SET
+        name = ?, model = ?, serial_number = ?, manufacturer = ?,
+        sector_id = ?, category_id = ?, subsector_id = ?,
+        acquisition_date = ?, maintenance_frequency_days = ?, observations = ?, 
+        patrimonio_number = ?, status = ?, updated_at = NOW()
+      WHERE id = ?
+    `;
 
+    const updateParams = [
+      'Teste API Debug V2',
+      'Modelo Debug V2',
+      'SN-DEBUG-002',
+      'Fabricante Debug V2',
+      1,
+      1,
+      1,
+      '2025-01-01',
+      5454,
+      'Teste de debug da API V2',
+      'PAT-DEBUG-002',
+      'ativo',
+      17
+    ];
+    
+    console.log('📊 Parâmetros do update:', updateParams);
+    
+    const [result] = await connection.execute(queryStr, updateParams);
+    
+    console.log('✅ Update executado com sucesso!');
+    console.log('📊 Resultado:', result);
+    
+    // Verificar o equipamento atualizado
+    const [updated] = await connection.execute('SELECT * FROM equipment WHERE id = ?', [17]);
+    console.log('📊 Equipamento atualizado:', updated[0]);
+    
   } catch (error) {
-    console.error('❌ Erro no teste:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('❌ Erro:', error);
+    console.error('❌ Stack:', error.stack);
+  } finally {
+    if (connection) {
+      await connection.end();
+      console.log('🔌 Conexão fechada');
+    }
   }
 }
 
-testEquipmentAPIDirect();
+testUpdateEquipment();

@@ -5,8 +5,6 @@ import { LogOut, User, Settings } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-// import { getCurrentUser, logoutUser } from "@/lib/auth-client" // Authentication removed
-// import { NotificationBadge } from "@/src/components/NotificationBadge" // Removed - Central de Notificações removida
 import { ThemeToggle } from "@/components/theme-toggle"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import NotificationCenter from "@/src/components/NotificationCenter"
@@ -20,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -41,16 +40,19 @@ function getGreeting(): string {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter()
+  const { user, isAuthenticated, isAdmin, logout } = useAuth()
   
-  // Estado para a saudação e nome do usuário
   const [greeting, setGreeting] = useState<string>("")
-  const [userName, setUserName] = useState<string>("Usuário")
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   
-
+  // Debug logs
+  useEffect(() => {
+    console.log('🔍 Header Debug:', {
+      isAuthenticated,
+      user,
+      isAdmin
+    })
+  }, [isAuthenticated, user, isAdmin])
   
   // Atualizar saudação a cada minuto
   useEffect(() => {
@@ -66,114 +68,40 @@ export function Header({ onMenuClick }: HeaderProps) {
     
     return () => clearInterval(interval)
   }, [])
-  
-  // Verificar se o usuário está logado
-  useEffect(() => {
-    const checkAuthStatus = () => {
-      console.log('🔍 Verificando status de autenticação...')
-      
-      // Verificar se existe token de autenticação
-      const authToken = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth_token='))
-        ?.split('=')[1];
-      
-      console.log('🍪 Auth token encontrado:', !!authToken)
-      
-      // Verificar dados do usuário no localStorage
-      const storedUserName = localStorage.getItem('userName')
-      const storedUserRole = localStorage.getItem('userRole')
-      
-      console.log('💾 LocalStorage - userName:', storedUserName)
-      console.log('💾 LocalStorage - userRole:', storedUserRole)
-      
-      // Para teste, vamos forçar o usuário como logado
-      const forceLogin = true
-      
-      if (authToken || storedUserName || forceLogin) {
-        console.log('✅ Usuário detectado como logado')
-        setIsLoggedIn(true)
-        setUserName(storedUserName || 'Administrador')
-        setUser({
-          name: storedUserName || 'Administrador',
-          role: storedUserRole || 'admin'
-        })
-      } else {
-        console.log('❌ Usuário não logado')
-        setIsLoggedIn(false)
-        setUser(null)
-        setUserName('Usuário')
-      }
-    }
-    
-    checkAuthStatus()
-    
-    // Verificar periodicamente se o status mudou
-    const interval = setInterval(checkAuthStatus, 5000)
-    
-    return () => clearInterval(interval)
-  }, [])
-  
-  console.log('🔍 Header renderizado - isLoggedIn:', isLoggedIn)
-  console.log('🔍 Header renderizado - Usuário:', user)
 
-  const getRoleBadgeVariant = (profile: string) => {
-    switch (profile) {
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
       case "admin":
         return "default"
-      case "gestor":
+      case "manager":
         return "secondary"
-      case "usuario":
+      case "technician":
+        return "outline"
+      case "user":
         return "outline"
       default:
         return "outline"
     }
   }
 
-  const getRoleDisplayName = (profile: string) => {
-    switch (profile) {
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
       case "admin":
         return "ADMIN"
-      case "gestor":
+      case "manager":
         return "GESTOR"
-      case "usuario":
+      case "technician":
+        return "TÉCNICO"
+      case "user":
         return "USUÁRIO"
       default:
-        return profile ? profile.toUpperCase() : "USUÁRIO"
+        return role ? role.toUpperCase() : "USUÁRIO"
     }
   }
 
-  const handleLogout = async () => {
-    console.log('🚪 Logout clicado')
-    
-    try {
-      // Chamar API de logout
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      })
-      
-      if (response.ok) {
-        console.log('✅ Logout realizado com sucesso')
-      } else {
-        console.warn('⚠️ Erro na API de logout, mas continuando...')
-      }
-    } catch (error) {
-      console.warn('⚠️ Erro ao chamar API de logout:', error)
-    }
-    
-    // Clear any stored user data
-    localStorage.removeItem('userName')
-    localStorage.removeItem('userRole')
-    localStorage.removeItem('authToken')
-    
-    // Atualizar estado local
-    setIsLoggedIn(false)
-    setUser(null)
-    setUserName('Usuário')
-    
-    // Redirect to login page
-    window.location.href = '/login'
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
   }
 
   const handleDropdownTriggerClick = () => {
@@ -188,13 +116,11 @@ export function Header({ onMenuClick }: HeaderProps) {
   }
 
   const handleProfileClick = () => {
-    console.log('👤 Perfil clicado')
     router.push('/perfil')
     setDropdownOpen(false)
   }
 
   const handleSettingsClick = () => {
-    console.log('⚙️ Configurações clicado')
     router.push('/configuracoes')
     setDropdownOpen(false)
   }
@@ -220,45 +146,29 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-border" />
 
-          {/* Debug: Status do usuário */}
-          <div className="text-xs text-muted-foreground">
-            Status: {isLoggedIn ? 'Logado' : 'Não logado'} | User: {user?.name || 'Nenhum'}
-          </div>
-
-          {/* Botão de logout sempre visível para teste */}
-          <Button 
-            onClick={handleLogout}
-            variant="destructive"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            SAIR
-          </Button>
-
-          {/* Menu do Usuário com melhor visibilidade */}
-          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost"
-                className="flex items-center space-x-3 h-auto p-2 hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground border border-border/50 hover:border-border"
-                onClick={handleDropdownTriggerClick}
-              >
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                      {user?.name?.charAt(0).toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm font-medium leading-none">
-                      {user?.name || 'Usuário'}
-                    </span>
-                    <Badge variant="secondary" className="text-xs mt-1">
-                      {getRoleDisplayName(user?.role)}
-                    </Badge>
-                  </div>
-                  <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+          {/* Menu do Usuário */}
+          {isAuthenticated && (
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost"
+                  className="flex items-center space-x-3 h-auto p-2 hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground border border-border/50 hover:border-border"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+                        {user?.name?.charAt(0).toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium leading-none">
+                        {user?.name || 'Usuário'}
+                      </span>
+                      <Badge variant="secondary" className="text-xs mt-1">
+                        {getRoleDisplayName(user?.role)}
+                      </Badge>
+                    </div>
+                    <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -283,13 +193,15 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <User className="mr-2 h-4 w-4" />
                 <span>Perfil</span>
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleSettingsClick}
-                className="cursor-pointer hover:bg-accent focus:bg-accent"
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Configurações</span>
-              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem 
+                  onClick={handleSettingsClick}
+                  className="cursor-pointer hover:bg-accent focus:bg-accent"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Configurações</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleLogout}
@@ -300,6 +212,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </div>
     </div>

@@ -41,7 +41,9 @@ import {
   Users,
   Wrench,
   Download,
-  X
+  FileDown,
+  X,
+  Ban
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -79,6 +81,9 @@ export default function ServiceOrdersPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<ServiceOrder | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [orderToCancel, setOrderToCancel] = useState<ServiceOrder | null>(null)
+  const [isCanceling, setIsCanceling] = useState(false)
   
   // Estados para filtros de setor e sub setor
   const [sectors, setSectors] = useState<any[]>([])
@@ -590,6 +595,49 @@ export default function ServiceOrdersPage() {
     }
   }
 
+  // Função para cancelar ordem de serviço
+  const handleCancelOrder = (order: ServiceOrder) => {
+    setOrderToCancel(order)
+    setCancelModalOpen(true)
+  }
+
+  const confirmCancelOrder = async () => {
+    if (!orderToCancel) return
+
+    setIsCanceling(true)
+    try {
+      const response = await fetch(`/api/service-orders/${orderToCancel.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'CANCELADA'
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Ordem de serviço cancelada com sucesso!')
+        setCancelModalOpen(false)
+        setOrderToCancel(null)
+        loadServiceOrders() // Recarregar lista
+      } else {
+        toast.error(data.error || 'Erro ao cancelar ordem de serviço')
+      }
+    } catch (error) {
+      console.error('Erro ao cancelar ordem:', error)
+      toast.error('Erro ao cancelar ordem de serviço')
+    } finally {
+      setIsCanceling(false)
+    }
+  }
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -896,11 +944,13 @@ export default function ServiceOrdersPage() {
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => handleGeneratePDF(order)}
+                          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                         >
-                          <Download className="h-4 w-4" />
+                          <FileDown className="h-4 w-4 mr-1" />
+                          OS
                         </Button>
                         <Button
                           variant="outline"
@@ -917,6 +967,16 @@ export default function ServiceOrdersPage() {
                         >
                           <History className="h-4 w-4" />
                         </Button>
+                        {(order.status === 'ABERTA' || order.status === 'AGENDADA') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelOrder(order)}
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="destructive"
                           size="sm"
@@ -1334,6 +1394,31 @@ export default function ServiceOrdersPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal de Confirmação de Cancelamento */}
+      <AlertDialog open={cancelModalOpen} onOpenChange={setCancelModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja cancelar a ordem de serviço "{orderToCancel?.order_number}"?
+              Esta ação alterará o status da ordem para "CANCELADA".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCanceling}>
+              Não Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancelOrder}
+              disabled={isCanceling}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {isCanceling ? 'Cancelando...' : 'Cancelar Ordem'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

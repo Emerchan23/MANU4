@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         ms.*,
         e.name as equipment_name,
         e.model as equipment_model,
-        e.patrimonio as equipment_patrimonio,
+        COALESCE(e.patrimony, e.patrimonio_number) as equipment_patrimonio,
         u.full_name as assigned_user_name,
         mp.name as maintenance_plan_name,
         mp.maintenance_type as maintenance_type_name
@@ -108,12 +108,12 @@ export async function POST(request: NextRequest) {
     });
 
     // Verificar se o agendamento pode ser convertido
-    if (schedule.status !== 'concluido') {
+    if (schedule.status !== 'CONCLUIDA') {
       await connection.rollback();
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Apenas agendamentos com status "concluido" podem ser convertidos em ordem de serviço' 
+          error: 'Apenas agendamentos com status "CONCLUIDA" podem ser convertidos em ordem de serviço' 
         },
         { status: 400 }
       )
@@ -143,23 +143,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔍 Buscando empresa do equipamento...');
+    console.log('🔍 Buscando empresa padrão...');
 
-    // Buscar empresa do equipamento
-    console.log('🔍 Buscando empresa do equipamento...');
+    // Como a tabela equipment não tem company_id, vamos usar a empresa padrão
+    // mas garantir que ela seja buscada corretamente pelo nome
     const [companyRows] = await connection.execute(`
-      SELECT e.id as equipment_id, e.name as equipment_name
-      FROM equipment e
-      WHERE e.id = ?
-    `, [schedule.equipment_id]);
+      SELECT id, name FROM companies WHERE id = 1 LIMIT 1
+    `);
 
     console.log('📊 Resultado busca empresa:', { 
       rowsLength: companyRows?.length, 
       isArray: Array.isArray(companyRows),
-      equipment_id: schedule.equipment_id
+      companyName: companyRows?.[0]?.name,
+      companyId: companyRows?.[0]?.id
     });
 
-    const companyId = 1; // Usar empresa padrão (TechMed Soluções)
+    if (!companyRows || companyRows.length === 0) {
+      throw new Error('Empresa padrão não encontrada no banco de dados');
+    }
+
+    const companyId = companyRows[0].id;
+    const companyName = companyRows[0].name;
 
     console.log('🔍 Gerando número da ordem de serviço...');
 
@@ -195,6 +199,12 @@ export async function POST(request: NextRequest) {
     let maintenanceTypeId = null;
     let maintenanceTypeName = 'PREVENTIVA'; // Default
     
+    console.log('🔍 Dados do agendamento para tipo de manutenção:', {
+      maintenance_type: schedule.maintenance_type,
+      maintenance_type_name: schedule.maintenance_type_name,
+      maintenance_plan_name: schedule.maintenance_plan_name
+    });
+    
     // Mapear o tipo de manutenção do agendamento para o formato correto
     if (schedule.maintenance_type) {
       const typeMapping = {
@@ -208,7 +218,12 @@ export async function POST(request: NextRequest) {
       maintenanceTypeName = typeMapping[schedule.maintenance_type] || 'PREVENTIVA';
     } else if (schedule.maintenance_type_name) {
       maintenanceTypeName = schedule.maintenance_type_name.toUpperCase();
+    } else if (schedule.maintenance_plan_name) {
+      // Se não tem tipo específico, usar o nome do plano de manutenção
+      maintenanceTypeName = schedule.maintenance_plan_name.toUpperCase();
     }
+
+    console.log('🔧 Tipo de manutenção determinado:', maintenanceTypeName);
 
     // Buscar ou criar tipo de manutenção
     console.log('🔍 Buscando tipo de manutenção:', maintenanceTypeName);
@@ -219,12 +234,14 @@ export async function POST(request: NextRequest) {
     console.log('📊 Resultado busca tipo manutenção:', { 
       rowsLength: typeRows?.length, 
       isArray: Array.isArray(typeRows),
-      maintenanceTypeName
+      maintenanceTypeName,
+      foundType: typeRows?.[0]
     });
     
     if (typeRows && typeRows.length > 0) {
       maintenanceTypeId = typeRows[0].id;
       maintenanceTypeName = typeRows[0].name;
+      console.log('✅ Tipo de manutenção encontrado:', { id: maintenanceTypeId, name: maintenanceTypeName });
     } else {
       // Criar tipo se não existir
       console.log('🔧 Criando tipo de manutenção:', maintenanceTypeName);
@@ -233,6 +250,7 @@ export async function POST(request: NextRequest) {
         VALUES (?, ?, NOW(), NOW())
       `, [maintenanceTypeName, `Manutenção ${maintenanceTypeName}`]);
       maintenanceTypeId = insertResult.insertId;
+      console.log('✅ Tipo de manutenção criado:', { id: maintenanceTypeId, name: maintenanceTypeName });
     }
 
     // Determinar status baseado no agendamento
@@ -414,9 +432,9 @@ export async function POST(request: NextRequest) {
           so.*,
           e.name as equipment_name,
           e.model as equipment_model,
-          e.patrimonio as equipment_patrimonio,
+          COALESCE(e.patrimony, e.patrimonio_number) as equipment_patrimonio,
           c.name as company_name,
-          s.nome as sector_name,
+          s.name as sector_name,
           sub.name as subsector_name,
           u1.full_name as created_by_name,
           u2.full_name as assigned_to_name,
@@ -424,7 +442,7 @@ export async function POST(request: NextRequest) {
         FROM service_orders so
         LEFT JOIN equipment e ON so.equipment_id = e.id
         LEFT JOIN companies c ON so.company_id = c.id
-        LEFT JOIN setores s ON e.sector_id = s.id
+        LEFT JOIN sectors s ON e.sector_id = s.id
         LEFT JOIN subsectors sub ON e.subsector_id = sub.id
         LEFT JOIN users u1 ON so.created_by = u1.id
         LEFT JOIN users u2 ON so.assigned_to = u2.id

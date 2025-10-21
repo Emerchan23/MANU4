@@ -17,10 +17,28 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { MainLayout } from '@/components/layout/main-layout'
 
 export default function AgendamentosPage() {
-  const { dashboard, loading, error, refreshDashboard } = useMaintenanceDashboard()
+  console.log('🚀 [AgendamentosPage] Componente renderizando...')
+  
+  const router = useRouter()
+  
+  // Usar company_id padrão (1) para buscar dados do dashboard
+  const { dashboard, loading, error, refreshDashboard } = useMaintenanceDashboard('1')
+
+  console.log('🎯 [AgendamentosPage] Estado atual:', {
+    dashboard,
+    loading,
+    error,
+    pending_count: dashboard?.pending_count,
+    overdue_count: dashboard?.overdue_count,
+    completed_this_month: dashboard?.completed_this_month,
+    completion_rate: dashboard?.completion_rate
+  })
+  
+  console.log('🔍 [AgendamentosPage] Dashboard completo:', JSON.stringify(dashboard, null, 2))
 
   if (loading) {
     return (
@@ -96,6 +114,41 @@ export default function AgendamentosPage() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ações Rápidas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Link href="/agendamentos/novo">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                <Plus className="h-6 w-6 mb-2" />
+                Novo Agendamento
+              </Button>
+            </Link>
+            <Link href="/agendamentos/lista">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                <Calendar className="h-6 w-6 mb-2" />
+                Ver Lista Completa
+              </Button>
+            </Link>
+            <Link href="/agendamentos/planos">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                <Wrench className="h-6 w-6 mb-2" />
+                Gerenciar Planos
+              </Button>
+            </Link>
+            <Link href="/agendamentos/calendario">
+              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                <Calendar className="h-6 w-6 mb-2" />
+                Visualizar Calendário
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
@@ -104,7 +157,12 @@ export default function AgendamentosPage() {
             <Clock className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{dashboard?.pending_count || 0}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {(() => {
+                console.log('🔍 [RENDER] Renderizando pending_count:', dashboard?.pending_count)
+                return dashboard?.pending_count || 0
+              })()}
+            </div>
             <p className="text-xs text-gray-600">Aguardando execução</p>
           </CardContent>
         </Card>
@@ -115,7 +173,12 @@ export default function AgendamentosPage() {
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{dashboard?.overdue_count || 0}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {(() => {
+                console.log('🔍 [RENDER] Renderizando overdue_count:', dashboard?.overdue_count)
+                return dashboard?.overdue_count || 0
+              })()}
+            </div>
             <p className="text-xs text-gray-600">Requer atenção imediata</p>
           </CardContent>
         </Card>
@@ -126,7 +189,12 @@ export default function AgendamentosPage() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{dashboard?.completed_this_month || 0}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {(() => {
+                console.log('🔍 [RENDER] Renderizando completed_this_month:', dashboard?.completed_this_month)
+                return dashboard?.completed_this_month || 0
+              })()}
+            </div>
             <p className="text-xs text-gray-600">Manutenções realizadas</p>
           </CardContent>
         </Card>
@@ -137,71 +205,18 @@ export default function AgendamentosPage() {
             <TrendingUp className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{dashboard?.completion_rate || 0}%</div>
+            <div className="text-2xl font-bold text-purple-600">
+              {(() => {
+                console.log('🔍 [RENDER] Renderizando completion_rate:', dashboard?.completion_rate)
+                return dashboard?.completion_rate || 0
+              })()}%
+            </div>
             <p className="text-xs text-gray-600">Meta: 95%</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts and Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Statistics Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart className="h-5 w-5" />
-              Estatísticas Mensais
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dashboard?.monthly_stats || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="scheduled" fill="#3B82F6" name="Agendadas" />
-                <Bar dataKey="completed" fill="#10B981" name="Concluídas" />
-                <Bar dataKey="overdue" fill="#EF4444" name="Em Atraso" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
 
-        {/* Cost Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Análise de Custos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Custo Estimado:</span>
-                <span className="font-semibold">
-                  R$ {dashboard?.cost_analysis?.estimated_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Custo Real:</span>
-                <span className="font-semibold">
-                  R$ {dashboard?.cost_analysis?.actual_total?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Variação:</span>
-                <span className={`font-semibold ${
-                  (dashboard?.cost_analysis?.variance || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  {dashboard?.cost_analysis?.variance?.toFixed(1) || '0.0'}%
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Upcoming and Overdue Lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -241,11 +256,40 @@ export default function AgendamentosPage() {
               )}
             </div>
             <div className="mt-4">
-              <Link href="/agendamentos/calendario">
-                <Button variant="outline" className="w-full">
-                  Ver Calendário Completo
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  
+                  console.log('🔥 [DEBUG] Botão "Ver Calendário Completo" clicado!')
+                  console.log('🔥 [DEBUG] Router disponível:', !!router)
+                  console.log('🔥 [DEBUG] Tentando navegar para: /agendamentos/calendario')
+                  
+                  // Método 1: Tentar router.push
+                  try {
+                    console.log('🔥 [DEBUG] Método 1: router.push()')
+                    router.push('/agendamentos/calendario')
+                    console.log('🔥 [DEBUG] router.push() executado')
+                    
+                    // Aguardar um pouco e verificar se a navegação funcionou
+                    setTimeout(() => {
+                      if (window.location.pathname !== '/agendamentos/calendario') {
+                        console.log('🔥 [DEBUG] router.push() falhou, tentando método alternativo')
+                        window.location.href = '/agendamentos/calendario'
+                      }
+                    }, 100)
+                    
+                  } catch (error) {
+                    console.error('🔥 [DEBUG] Erro no router.push():', error)
+                    console.log('🔥 [DEBUG] Método 2: window.location.href')
+                    window.location.href = '/agendamentos/calendario'
+                  }
+                }}
+              >
+                Ver Calendário Completo
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -296,40 +340,6 @@ export default function AgendamentosPage() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Link href="/agendamentos/novo">
-              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                <Plus className="h-6 w-6 mb-2" />
-                Novo Agendamento
-              </Button>
-            </Link>
-            <Link href="/agendamentos/lista">
-              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                <Calendar className="h-6 w-6 mb-2" />
-                Ver Lista Completa
-              </Button>
-            </Link>
-            <Link href="/agendamentos/planos">
-              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                <Wrench className="h-6 w-6 mb-2" />
-                Gerenciar Planos
-              </Button>
-            </Link>
-            <Link href="/agendamentos/calendario">
-              <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
-                <Calendar className="h-6 w-6 mb-2" />
-                Visualizar Calendário
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
       </div>
     </MainLayout>
   )

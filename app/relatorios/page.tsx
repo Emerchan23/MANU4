@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, DocumentArrowDownIcon, ChartBarIcon, FunnelIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import { MainLayout } from '@/components/layout/main-layout'
+import { DateInput } from '@/components/ui/date-input'
 
 interface Equipment {
   id: number
@@ -13,11 +14,10 @@ interface Equipment {
   sector_name: string
 }
 
-interface Company {
+interface Sector {
   id: number
   name: string
-  cnpj: string
-  contact_email: string
+  description: string
 }
 
 interface MaintenanceRecord {
@@ -28,7 +28,6 @@ interface MaintenanceRecord {
   status: string
   technician_name: string
   cost: number
-  company_name?: string
 }
 
 interface EquipmentStats {
@@ -38,172 +37,213 @@ interface EquipmentStats {
   successRate: number
 }
 
-interface CompanyStats {
-  totalSpent: number
-  totalServices: number
-  averageCostPerService: number
-  equipmentCount: number
-  activePeriod: string
-  successRate: number
-}
-
 export default function RelatoriosPage() {
-  const [activeTab, setActiveTab] = useState<'equipamentos' | 'empresas'>('equipamentos')
-  const [equipmentSearch, setEquipmentSearch] = useState('')
-  const [companySearch, setCompanySearch] = useState('')
-  const [equipmentSuggestions, setEquipmentSuggestions] = useState<Equipment[]>([])
-  const [companySuggestions, setCompanySuggestions] = useState<Company[]>([])
+  // Filtros
+  const [selectedSector, setSelectedSector] = useState<string>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const [dateError, setDateError] = useState('')
+  
+  // Dados
+  const [sectors, setSectors] = useState<Sector[]>([])
+  const [equipmentResults, setEquipmentResults] = useState<Equipment[]>([])
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [maintenanceHistory, setMaintenanceHistory] = useState<MaintenanceRecord[]>([])
   const [equipmentStats, setEquipmentStats] = useState<EquipmentStats | null>(null)
-  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null)
+  
+  // Estados
   const [loading, setLoading] = useState(false)
-  const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false)
-  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
 
-  // Equipment search with debounce
+  // Carregar setores ao inicializar
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (equipmentSearch.length >= 2) {
-        searchEquipment(equipmentSearch)
-      } else {
-        setEquipmentSuggestions([])
-        setShowEquipmentSuggestions(false)
-      }
-    }, 300)
+    fetchSectors()
+  }, [])
 
-    return () => clearTimeout(timer)
-  }, [equipmentSearch])
-
-  // Company search with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (companySearch.length >= 2) {
-        searchCompany(companySearch)
-      } else {
-        setCompanySuggestions([])
-        setShowCompanySuggestions(false)
-      }
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [companySearch])
-
-  const searchEquipment = async (query: string) => {
+  const fetchSectors = async () => {
     try {
-      const response = await fetch(`/api/relatorios/equipment/search?q=${encodeURIComponent(query)}`)
+      const response = await fetch('/api/sectors')
       if (response.ok) {
         const data = await response.json()
-        setEquipmentSuggestions(data)
-        setShowEquipmentSuggestions(true)
+        setSectors(data)
       }
     } catch (error) {
-      console.error('Erro ao buscar equipamentos:', error)
+      console.error('Erro ao buscar setores:', error)
     }
   }
 
-  const searchCompany = async (query: string) => {
+  const searchEquipments = async () => {
+    setLoading(true)
+    setDateError('')
+    setHasSearched(true)
+    
     try {
-      const response = await fetch(`/api/relatorios/companies/search?q=${encodeURIComponent(query)}`)
+      // Validação de datas
+      if (startDate && endDate) {
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        
+        if (start > end) {
+          setDateError('A data inicial deve ser menor que a data final')
+          setLoading(false)
+          return
+        }
+        
+        const today = new Date()
+        today.setHours(23, 59, 59, 999)
+        
+        if (start > today) {
+          setDateError('A data inicial não pode ser futura')
+          setLoading(false)
+          return
+        }
+        
+        if (end > today) {
+          setDateError('A data final não pode ser futura')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Construir URL com filtros
+      const params = new URLSearchParams()
+      if (selectedSector) params.append('sector', selectedSector)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      if (searchText && searchText.trim().length >= 2) params.append('q', searchText.trim())
+      
+      const response = await fetch(`/api/relatorios/equipment/search?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
-        setCompanySuggestions(data)
-        setShowCompanySuggestions(true)
+        setEquipmentResults(data)
+      } else {
+        console.error('Erro na resposta da API:', response.status, response.statusText)
+        setEquipmentResults([])
       }
     } catch (error) {
-      console.error('Erro ao buscar empresas:', error)
+      console.error('Erro ao buscar equipamentos:', error)
+      setEquipmentResults([])
+    } finally {
+      setLoading(false)
     }
   }
 
   const selectEquipment = async (equipment: Equipment) => {
     setSelectedEquipment(equipment)
-    setEquipmentSearch(equipment.name)
-    setShowEquipmentSuggestions(false)
-    setLoading(true)
+    
+    // Limpar dados anteriores
+    setMaintenanceHistory([])
+    setEquipmentStats(null)
+    
+    // Carregar dados do equipamento
+    await loadEquipmentData(equipment.id, startDate, endDate)
+  }
 
+  const loadEquipmentData = async (equipmentId: number, startDate?: string, endDate?: string) => {
     try {
+      // Construir URL com parâmetros de período se fornecidos
+      let historyUrl = `/api/relatorios/equipment/${equipmentId}/history`
+      const params = new URLSearchParams()
+      
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      
+      if (params.toString()) {
+        historyUrl += `?${params.toString()}`
+      }
+
       // Fetch maintenance history
-      const historyResponse = await fetch(`/api/relatorios/equipment/${equipment.id}/history`)
+      const historyResponse = await fetch(historyUrl)
       if (historyResponse.ok) {
         const historyData = await historyResponse.json()
         setMaintenanceHistory(historyData)
+      } else {
+        setMaintenanceHistory([])
       }
 
       // Fetch equipment statistics
-      const statsResponse = await fetch(`/api/relatorios/equipment/${equipment.id}/stats`)
+      const statsResponse = await fetch(`/api/relatorios/equipment/${equipmentId}/stats`)
       if (statsResponse.ok) {
         const statsData = await statsResponse.json()
         setEquipmentStats(statsData)
       }
     } catch (error) {
       console.error('Erro ao carregar dados do equipamento:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
-  const selectCompany = async (company: Company) => {
-    setSelectedCompany(company)
-    setCompanySearch(company.name)
-    setShowCompanySuggestions(false)
-    setLoading(true)
-
-    try {
-      // Fetch company statistics and services
-      const statsResponse = await fetch(`/api/relatorios/companies/${company.id}/stats`)
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setCompanyStats(statsData.stats)
-        setMaintenanceHistory(statsData.services)
-      }
-    } catch (error) {
-      console.error('Erro ao carregar dados da empresa:', error)
-    } finally {
-      setLoading(false)
-    }
+  const clearFilters = () => {
+    setSelectedSector('')
+    setStartDate('')
+    setEndDate('')
+    setSearchText('')
+    setDateError('')
+    setEquipmentResults([])
+    setSelectedEquipment(null)
+    setMaintenanceHistory([])
+    setEquipmentStats(null)
+    setHasSearched(false)
   }
 
   const generatePDF = async () => {
-    if (activeTab === 'equipamentos' && selectedEquipment) {
-      try {
-        const response = await fetch(`/api/relatorios/equipment/${selectedEquipment.id}/pdf`, {
-          method: 'POST'
-        })
-        if (response.ok) {
-          const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `relatorio-equipamento-${selectedEquipment.code}.pdf`
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        }
-      } catch (error) {
-        console.error('Erro ao gerar PDF:', error)
+    if (!selectedEquipment) return
+    
+    setGeneratingPDF(true)
+    
+    try {
+      console.log('🔍 Gerando PDF para equipamento:', selectedEquipment.id, selectedEquipment.name)
+      
+      // Preparar dados para enviar no body da requisição POST
+      const requestData = {
+        equipmentId: selectedEquipment.id,
+        startDate: startDate || null,
+        endDate: endDate || null
       }
-    } else if (activeTab === 'empresas' && selectedCompany) {
-      try {
-        const response = await fetch(`/api/relatorios/companies/${selectedCompany.id}/pdf`, {
-          method: 'POST'
-        })
-        if (response.ok) {
-          const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `relatorio-empresa-${selectedCompany.name.replace(/\s+/g, '-')}.pdf`
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        }
-      } catch (error) {
-        console.error('Erro ao gerar PDF:', error)
+      
+      console.log('📊 Dados da requisição:', requestData)
+      
+      const response = await fetch(`/api/relatorios/equipment/${selectedEquipment.id}/pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+      
+      console.log('📊 Status da resposta:', response.status)
+      console.log('📊 Headers da resposta:', response.headers.get('content-type'))
+      
+      if (response.ok) {
+        const blob = await response.blob()
+        console.log('✅ PDF recebido, tamanho:', blob.size, 'bytes')
+        
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `relatorio-${selectedEquipment.name.replace(/[^a-zA-Z0-9]/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        
+        console.log('✅ PDF baixado com sucesso!')
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Erro na resposta da API:', response.status, errorText)
+        alert(`Erro ao gerar PDF: ${response.status} - ${errorText}`)
       }
+    } catch (error) {
+      console.error('💥 Erro ao gerar PDF:', error)
+      alert(`Erro ao gerar PDF: ${error.message}`)
+    } finally {
+      setGeneratingPDF(false)
     }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR')
   }
 
   const formatCurrency = (value: number) => {
@@ -213,10 +253,6 @@ export default function RelatoriosPage() {
     }).format(value)
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
-  }
-
   return (
     <MainLayout>
       <div className="min-h-screen bg-gray-50 p-6">
@@ -224,396 +260,276 @@ export default function RelatoriosPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Relatórios de Manutenção</h1>
-            <p className="text-gray-600">Consulte o histórico de manutenções e gere relatórios detalhados</p>
+            <p className="text-gray-600">Selecione um equipamento e gere relatórios detalhados em PDF</p>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="mb-6">
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
-                <button
-                  onClick={() => setActiveTab('equipamentos')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'equipamentos'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <ChartBarIcon className="w-5 h-5 inline mr-2" />
-                  Equipamentos
-                </button>
-                <button
-                  onClick={() => setActiveTab('empresas')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === 'empresas'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <BuildingOfficeIcon className="w-5 h-5 inline mr-2" />
-                  Empresas
-                </button>
-              </nav>
+          {/* Filtros - Layout Horizontal Simples */}
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <div className="flex items-center mb-4">
+              <FunnelIcon className="w-5 h-5 text-gray-500 mr-2" />
+              <h2 className="text-lg font-semibold text-gray-900">Filtros de Busca</h2>
             </div>
-          </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              {/* Setor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Setor</label>
+                <select
+                  value={selectedSector}
+                  onChange={(e) => setSelectedSector(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Todos os setores</option>
+                  {sectors.map((sector) => (
+                    <option key={sector.id} value={sector.id.toString()}>
+                      {sector.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Equipment Tab */}
-        {activeTab === 'equipamentos' && (
-          <div className="space-y-6">
-            {/* Equipment Search */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Buscar Equipamento</h2>
-              <div className="relative">
+              {/* Data Inicial */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
+                <DateInput
+                  value={startDate}
+                  onChange={(value) => setStartDate(value)}
+                  className="w-full"
+                  placeholder="dd/mm/aaaa"
+                />
+              </div>
+
+              {/* Data Final */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
+                <DateInput
+                  value={endDate}
+                  onChange={(value) => setEndDate(value)}
+                  className="w-full"
+                  placeholder="dd/mm/aaaa"
+                />
+              </div>
+
+              {/* Busca */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Buscar Equipamento</label>
                 <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Digite o nome do equipamento ou patrimônio..."
-                    value={equipmentSearch}
-                    onChange={(e) => setEquipmentSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Nome ou código..."
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                
-                {/* Equipment Suggestions */}
-                {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {equipmentSuggestions.map((equipment) => (
-                      <button
-                        key={equipment.id}
-                        onClick={() => selectEquipment(equipment)}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-                      >
-                        <div className="font-medium text-gray-900">{equipment.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {equipment.code} - {equipment.manufacturer} - {equipment.sector_name}
+              </div>
+            </div>
+
+            {/* Botões */}
+            <div className="flex gap-3">
+              <button
+                onClick={searchEquipments}
+                disabled={loading}
+                className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                  !loading
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {loading ? 'Buscando...' : 'Buscar Equipamentos'}
+              </button>
+              
+              {hasSearched && (
+                <button
+                  onClick={clearFilters}
+                  className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+
+            {dateError && (
+              <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded">
+                {dateError}
+              </div>
+            )}
+          </div>
+
+          {/* Resultados */}
+          {hasSearched && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Lista de Equipamentos */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-lg shadow-sm border">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Equipamentos Encontrados ({equipmentResults.length})
+                    </h3>
+                  </div>
+
+                  {equipmentResults.length > 0 ? (
+                    <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                      {equipmentResults.map((equipment) => (
+                        <div
+                          key={equipment.id}
+                          onClick={() => selectEquipment(equipment)}
+                          className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            selectedEquipment?.id === equipment.id 
+                              ? 'bg-blue-50 border-l-4 border-blue-500' 
+                              : ''
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900 mb-1">{equipment.name}</h4>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Código:</span> {equipment.code}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Setor:</span> {equipment.sector_name}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Fabricante:</span> {equipment.manufacturer}
+                              </p>
+                            </div>
+                            {selectedEquipment?.id === equipment.id && (
+                              <CheckCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                            )}
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-6 py-12 text-center">
+                      <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">Nenhum equipamento encontrado</h3>
+                      <p className="text-sm text-gray-500">
+                        Tente ajustar os filtros ou verificar se há equipamentos cadastrados.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Painel do Equipamento Selecionado */}
+              <div className="lg:col-span-1">
+                {selectedEquipment ? (
+                  <div className="bg-white rounded-lg shadow-sm border">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">Equipamento Selecionado</h3>
+                    </div>
+                    
+                    <div className="p-6">
+                      {/* Informações do Equipamento */}
+                      <div className="mb-6">
+                        <h4 className="font-medium text-gray-900 mb-3">{selectedEquipment.name}</h4>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-700">Código:</span>
+                            <span className="ml-2 text-gray-600">{selectedEquipment.code}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Modelo:</span>
+                            <span className="ml-2 text-gray-600">{selectedEquipment.model}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Fabricante:</span>
+                            <span className="ml-2 text-gray-600">{selectedEquipment.manufacturer}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Setor:</span>
+                            <span className="ml-2 text-gray-600">{selectedEquipment.sector_name}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Estatísticas Rápidas */}
+                      {equipmentStats && (
+                        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                          <h5 className="font-medium text-gray-900 mb-3">Resumo</h5>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <div className="font-medium text-gray-700">Manutenções</div>
+                              <div className="text-lg font-semibold text-blue-600">
+                                {equipmentStats.totalMaintenances}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-700">Custo Total</div>
+                              <div className="text-lg font-semibold text-green-600">
+                                {formatCurrency(equipmentStats.totalCost)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preview do Relatório */}
+                      <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                        <h5 className="font-medium text-blue-900 mb-2">O que será incluído no PDF:</h5>
+                        <ul className="text-sm text-blue-800 space-y-1">
+                          <li>• Informações completas do equipamento</li>
+                          <li>• Histórico de manutenções no período</li>
+                          <li>• Estatísticas e custos</li>
+                          <li>• Gráficos e análises</li>
+                          {maintenanceHistory.length > 0 && (
+                            <li>• {maintenanceHistory.length} registros de manutenção</li>
+                          )}
+                        </ul>
+                      </div>
+
+                      {/* BOTÃO PDF - SEMPRE VISÍVEL */}
+                      <button
+                        onClick={generatePDF}
+                        disabled={generatingPDF}
+                        className={`w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center ${
+                          !generatingPDF
+                            ? 'bg-red-600 text-white hover:bg-red-700 shadow-lg' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
+                        {generatingPDF ? 'Gerando PDF...' : 'Gerar Relatório PDF'}
                       </button>
-                    ))}
+
+                      {maintenanceHistory.length === 0 && (
+                        <p className="text-xs text-gray-500 mt-2 text-center">
+                          * Relatório será gerado mesmo sem histórico de manutenções
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
+                    <DocumentArrowDownIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">Selecione um Equipamento</h3>
+                    <p className="text-sm text-gray-500">
+                      Clique em um equipamento da lista para ver suas informações e gerar o relatório PDF.
+                    </p>
                   </div>
                 )}
               </div>
             </div>
+          )}
 
-            {/* Equipment Statistics */}
-            {selectedEquipment && equipmentStats && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <ChartBarIcon className="w-5 h-5 text-blue-600" />
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Total de Manutenções</p>
-                      <p className="text-2xl font-semibold text-gray-900">{equipmentStats.totalMaintenances}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-600 font-bold">R$</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Custo Total</p>
-                      <p className="text-2xl font-semibold text-gray-900">{formatCurrency(equipmentStats.totalCost)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                        <span className="text-yellow-600 font-bold">⏱</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Tempo Médio</p>
-                      <p className="text-2xl font-semibold text-gray-900">{equipmentStats.averageRepairTime}h</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span className="text-purple-600 font-bold">✓</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Taxa de Sucesso</p>
-                      <p className="text-2xl font-semibold text-gray-900">{equipmentStats.successRate}%</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Maintenance History Table */}
-            {selectedEquipment && maintenanceHistory.length > 0 && (
-              <div className="bg-white rounded-lg shadow">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-900">Histórico de Manutenções</h3>
-                  <button
-                    onClick={generatePDF}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-                    Gerar PDF
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Técnico</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Custo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {maintenanceHistory.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(record.date)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.type}</td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{record.description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              record.status === 'CONCLUIDA' ? 'bg-green-100 text-green-800' :
-                              record.status === 'EM_ANDAMENTO' ? 'bg-yellow-100 text-yellow-800' :
-                              record.status === 'CANCELADA' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {record.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.technician_name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.cost)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Companies Tab */}
-        {activeTab === 'empresas' && (
-          <div className="space-y-6">
-            {/* Company Search */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Buscar Empresa</h2>
-              <div className="relative">
-                <div className="relative">
-                  <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Digite o nome da empresa ou CNPJ..."
-                    value={companySearch}
-                    onChange={(e) => setCompanySearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                {/* Company Suggestions */}
-                {showCompanySuggestions && companySuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {companySuggestions.map((company) => (
-                      <button
-                        key={company.id}
-                        onClick={() => selectCompany(company)}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-                      >
-                        <div className="font-medium text-gray-900">{company.name}</div>
-                        <div className="text-sm text-gray-500">
-                          CNPJ: {company.cnpj} - {company.contact_email}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {/* Estado Inicial */}
+          {!hasSearched && (
+            <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+              <ChartBarIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Bem-vindo aos Relatórios</h3>
+              <p className="text-gray-500 mb-6">
+                Use os filtros acima para buscar equipamentos e gerar relatórios detalhados em PDF.
+              </p>
+              <button
+                onClick={searchEquipments}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Buscar Todos os Equipamentos
+              </button>
             </div>
-
-            {/* Company Statistics */}
-            {selectedCompany && companyStats && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 font-bold">R$</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Total Gasto</p>
-                      <p className="text-2xl font-semibold text-gray-900">{formatCurrency(companyStats.totalSpent)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <ChartBarIcon className="w-5 h-5 text-green-600" />
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Serviços Realizados</p>
-                      <p className="text-2xl font-semibold text-gray-900">{companyStats.totalServices}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                        <span className="text-yellow-600 font-bold">⚡</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Média por Serviço</p>
-                      <p className="text-2xl font-semibold text-gray-900">{formatCurrency(companyStats.averageCostPerService)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span className="text-purple-600 font-bold">🔧</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Equipamentos Atendidos</p>
-                      <p className="text-2xl font-semibold text-gray-900">{companyStats.equipmentCount}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <span className="text-indigo-600 font-bold">📅</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Período de Atuação</p>
-                      <p className="text-lg font-semibold text-gray-900">{companyStats.activePeriod}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-600 font-bold">✓</span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-500">Taxa de Sucesso</p>
-                      <p className="text-2xl font-semibold text-gray-900">{companyStats.successRate}%</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Company Services Table */}
-            {selectedCompany && maintenanceHistory.length > 0 && (
-              <div className="bg-white rounded-lg shadow">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-900">Serviços Realizados</h3>
-                  <button
-                    onClick={generatePDF}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
-                    Gerar PDF
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipamento</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Custo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {maintenanceHistory.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(record.date)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.technician_name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.type}</td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{record.description}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              record.status === 'CONCLUIDA' ? 'bg-green-100 text-green-800' :
-                              record.status === 'EM_ANDAMENTO' ? 'bg-yellow-100 text-yellow-800' :
-                              record.status === 'CANCELADA' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {record.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.cost)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-gray-600">Carregando dados...</span>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && !selectedEquipment && !selectedCompany && (
-          <div className="text-center py-12">
-            <div className="mx-auto h-12 w-12 text-gray-400">
-              <MagnifyingGlassIcon />
-            </div>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
-              {activeTab === 'equipamentos' ? 'Nenhum equipamento selecionado' : 'Nenhuma empresa selecionada'}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {activeTab === 'equipamentos' 
-                ? 'Busque por um equipamento para visualizar seu histórico de manutenções'
-                : 'Busque por uma empresa para visualizar seus relatórios financeiros'
-              }
-            </p>
-          </div>
-        )}
+          )}
         </div>
       </div>
     </MainLayout>

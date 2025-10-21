@@ -2,98 +2,63 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '../../../lib/database.js';
 
 // GET - Listar equipamentos
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    console.log('🔍 API Route GET - Iniciando busca de equipamentos');
+    console.log('🔍 [EQUIPMENT API] Iniciando busca de equipamentos...');
     
     const queryStr = `
       SELECT 
         e.id,
         e.name,
-        e.patrimonio,
+        e.patrimony,
+        e.patrimonio_number,
+        e.code,
         e.model,
         e.serial_number,
         e.manufacturer,
         e.sector_id,
         e.category_id,
         e.subsector_id,
-        e.installation_date,
-        e.last_preventive_maintenance,
-        e.next_preventive_maintenance,
-        e.maintenance_frequency_days,
+        e.location,
+        e.acquisition_date,
+        e.last_maintenance,
+        e.next_maintenance,
         e.warranty_expiry,
         e.status,
         e.observations,
+        e.is_active,
         e.created_at,
         e.updated_at,
-        e.patrimonio_number,
         e.voltage,
-        e.power,
-        e.maintenance_frequency,
-        s.nome as sector_name,
-        s.company_id,
-        comp.name as company_name,
+        s.name as sector_name,
         c.name as category_name,
         sub.name as subsector_name
       FROM equipment e
-      LEFT JOIN setores s ON e.sector_id = s.id
-      LEFT JOIN companies comp ON s.company_id = comp.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subsectors sub ON e.subsector_id = sub.id
+      WHERE e.is_active = 1
       ORDER BY e.created_at DESC
     `;
+
+    const equipments = await query(queryStr);
     
-    console.log('🔍 Executando query...');
-    const rows = await query(queryStr, []);
-    console.log('📊 Equipamentos encontrados:', rows.length);
+    console.log('✅ [EQUIPMENT API] Equipamentos encontrados:', equipments.length);
     
-    // Transformar os dados para o formato esperado pelo frontend
-    const transformedData = rows.map(equipment => ({
-      id: equipment.id,
-      name: equipment.name,
-      patrimonio: equipment.patrimonio,
-      model: equipment.model,
-      serial_number: equipment.serial_number,
-      manufacturer: equipment.manufacturer,
-      company_id: equipment.company_id,
-      sector_id: equipment.sector_id,
-      category_id: equipment.category_id,
-      subsector_id: equipment.subsector_id,
-      installation_date: equipment.installation_date,
-      last_preventive_maintenance: equipment.last_preventive_maintenance,
-      next_preventive_maintenance: equipment.next_preventive_maintenance,
-      maintenance_frequency_days: equipment.maintenance_frequency_days,
-      warranty_expiry: equipment.warranty_expiry,
-      status: equipment.status,
-      observations: equipment.observations,
-      created_at: equipment.created_at,
-      updated_at: equipment.updated_at,
-      patrimonio_number: equipment.patrimonio_number,
-      voltage: equipment.voltage,
-      power: equipment.power,
-      maintenance_frequency: equipment.maintenance_frequency,
-      // Campos relacionados (joins)
-      sector_name: equipment.sector_name,
-      company_name: equipment.company_name,
-      category_name: equipment.category_name,
-      subsector_name: equipment.subsector_name,
-    }));
-    
-    console.log('✅ Dados transformados com sucesso');
-    
-    const response = {
+    return NextResponse.json({
       success: true,
-      data: transformedData
-    };
-    
-    console.log('✅ Resposta preparada com sucesso');
-    return NextResponse.json(response, { status: 200 });
-    
+      data: equipments,
+      total: equipments.length
+    });
+
   } catch (error) {
-    console.error('❌ Erro na API de equipamentos:', error);
-    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ [EQUIPMENT API] Erro ao buscar equipamentos:', error);
     return NextResponse.json(
-      { success: false, message: 'Erro interno do servidor', error: error.message },
+      { 
+        success: false, 
+        message: 'Erro ao buscar equipamentos',
+        error: error.message 
+      },
       { status: 500 }
     );
   }
@@ -102,38 +67,121 @@ export async function GET(request: NextRequest) {
 // POST - Criar equipamento
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-
-    const mockReq = {
-      body,
-      params: {},
-      query: {}
-    };
-
-    let responseData: any = null;
-    let statusCode = 200;
-
-    const mockRes = {
-      json: (data: any) => {
-        responseData = data;
-      },
-      status: (code: number) => {
-        statusCode = code;
-        return {
-          json: (data: any) => {
-            responseData = data;
+    console.log('🔄 [EQUIPMENT API] POST - Iniciando criação de equipamento...');
+    
+    // Ler o body da requisição usando ReadableStream para evitar problemas
+    let body;
+    try {
+      const reader = request.body?.getReader();
+      if (reader) {
+        const chunks = [];
+        let done = false;
+        
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            chunks.push(value);
           }
-        };
+        }
+        
+        if (chunks.length > 0) {
+          const bodyText = new TextDecoder().decode(
+            new Uint8Array(chunks.reduce((acc, chunk) => [...acc, ...chunk], []))
+          );
+          
+          if (bodyText.trim()) {
+            body = JSON.parse(bodyText);
+            console.log('✅ [EQUIPMENT API] Body parseado via ReadableStream:', body);
+          } else {
+            throw new Error('Body vazio');
+          }
+        } else {
+          throw new Error('Nenhum dado recebido');
+        }
+      } else {
+        throw new Error('Request body não disponível');
       }
-    };
+    } catch (parseError) {
+      console.error('❌ [EQUIPMENT API] Erro ao parsear body:', parseError);
+      return NextResponse.json(
+        { success: false, message: 'Erro ao parsear dados da requisição', error: parseError.message },
+        { status: 400 }
+      );
+    }
+    
+    // Validação básica
+    if (!body.name) {
+      console.log('❌ [EQUIPMENT API] Nome é obrigatório');
+      return NextResponse.json(
+        { success: false, message: 'Nome é obrigatório' },
+        { status: 400 }
+      );
+    }
 
-    await equipmentAPI.createEquipment(mockReq, mockRes);
+    console.log('🔍 [EQUIPMENT API] Preparando dados para inserção...');
+    
+    // Preparar dados para inserção
+    const insertData = [
+      body.name,
+      body.patrimony_number || null, // patrimony
+      body.patrimony_number || null, // patrimonio_number
+      body.patrimony_number || null, // code (usando mesmo valor)
+      body.model || null,
+      body.brand || body.manufacturer || null, // manufacturer
+      body.serial_number || null,
+      body.category_id || null,
+      body.sector_id || null,
+      body.subsector_id || null,
+      body.location || null,
+      body.status || 'ativo',
+      body.installation_date || null, // acquisition_date
+      body.warranty_expiry || null,
+      body.last_maintenance || null,
+      body.next_maintenance || null,
+      body.observations || null,
+      1, // is_active = true
+      body.maintenance_frequency_days || null
+    ];
+    
+    console.log('📊 [EQUIPMENT API] Dados preparados:', insertData);
 
-    return NextResponse.json(responseData, { status: statusCode });
+    // Inserir equipamento na tabela
+    const insertQuery = `
+      INSERT INTO equipment (
+        name, patrimony, patrimonio_number, code, model, manufacturer, 
+        serial_number, category_id, sector_id, subsector_id, location, 
+        status, acquisition_date, warranty_expiry, last_maintenance, 
+        next_maintenance, observations, is_active, maintenance_frequency_days
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    console.log('🔍 [EQUIPMENT API] Executando query de inserção...');
+    const result = await query(insertQuery, insertData);
+    
+    console.log('✅ [EQUIPMENT API] Query executada com sucesso:', result);
+    console.log('✅ [EQUIPMENT API] Equipamento criado com ID:', result.insertId);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Equipamento criado com sucesso',
+      id: result.insertId
+    }, { status: 201 });
+
   } catch (error) {
-    console.error('Erro ao criar equipamento:', error);
+    console.error('❌ [EQUIPMENT API] Erro ao criar equipamento:', error);
+    console.error('❌ [EQUIPMENT API] Stack trace:', error.stack);
+    console.error('❌ [EQUIPMENT API] Tipo do erro:', typeof error);
+    console.error('❌ [EQUIPMENT API] Propriedades do erro:', Object.keys(error));
+    
     return NextResponse.json(
-      { success: false, message: 'Erro interno do servidor' },
+      { 
+        success: false, 
+        message: 'Erro interno do servidor', 
+        error: error.message,
+        errorType: typeof error,
+        errorName: error.name
+      },
       { status: 500 }
     );
   }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 
 // Database connection configuration
@@ -11,7 +11,7 @@ const dbConfig = {
 
 // DELETE - Excluir template de serviço por ID
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -24,7 +24,10 @@ export async function DELETE(
       )
     }
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     // Verificar se o template existe
     const [existing] = await connection.execute(
@@ -80,7 +83,10 @@ export async function GET(
       )
     }
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     const [rows] = await connection.execute(`
       SELECT 
@@ -123,12 +129,24 @@ export async function GET(
 
 // PUT - Atualizar template específico por ID
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params
-    const body = await request.json()
+    
+    // Ler o body da requisição usando método alternativo para evitar conflito
+    let body;
+    try {
+      const bodyText = await request.text();
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('❌ Erro ao processar body:', parseError);
+      return NextResponse.json(
+        { success: false, error: 'Dados inválidos na requisição' },
+        { status: 400 }
+      );
+    }
     const {
       name,
       description,
@@ -144,7 +162,10 @@ export async function PUT(
       )
     }
 
-    const connection = await mysql.createConnection(dbConfig)
+    const connection = await mysql.createConnection({
+      ...dbConfig,
+      charset: 'utf8mb4'
+    })
 
     // Verificar se o template existe
     const [existing] = await connection.execute(
@@ -213,6 +234,9 @@ export async function PUT(
       )
     }
 
+    // Definir charset UTF-8 para a conexão
+    await connection.execute('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci')
+    
     // Executar atualização
     await connection.execute(
       `UPDATE service_description_templates SET ${updateFields.join(', ')} WHERE id = ?`,
@@ -223,14 +247,14 @@ export async function PUT(
     const [updatedTemplate] = await connection.execute(`
       SELECT 
         st.id,
-        st.name,
-        st.description,
-        st.content,
+        CONVERT(st.name USING utf8mb4) as name,
+        CONVERT(st.description USING utf8mb4) as description,
+        CONVERT(st.content USING utf8mb4) as content,
         st.category_id,
         st.is_active as active,
         st.created_at,
         st.updated_at,
-        ct.nome as category_name,
+        CONVERT(ct.nome USING utf8mb4) as category_name,
         ct.cor as category_color
       FROM service_description_templates st
       LEFT JOIN categorias_templates ct ON st.category_id = ct.id

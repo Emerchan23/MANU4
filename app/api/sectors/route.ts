@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { query, execute } from '@/lib/database'
 import type { DatabaseResult } from '@/types/database'
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const sql = `
       SELECT s.id, s.nome as name, s.descricao as description, s.responsavel as manager_id, s.ativo as active, s.criado_em as created_at, s.atualizado_em as updated_at
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
   try {
     console.log('PUT request recebido')
     const body = await request.json()

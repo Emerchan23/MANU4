@@ -1,58 +1,78 @@
 const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 async function checkEquipmentStructure() {
-    const connection = await mysql.createConnection({
-        host: 'localhost',
-        user: 'root',
-        password: '',
-        database: 'hospital_maintenance'
+  console.log('🔍 Verificando estrutura da tabela equipment...');
+  
+  // Configuração do banco de dados
+  const dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'hospital_maintenance',
+    port: process.env.DB_PORT || 3306,
+    charset: 'utf8mb4',
+    timezone: '+00:00'
+  };
+
+  let connection;
+  
+  try {
+    connection = await mysql.createConnection(dbConfig);
+    console.log('✅ Conectado ao banco de dados');
+    
+    // Verificar estrutura da tabela equipment
+    console.log('\n📋 Estrutura da tabela equipment:');
+    const [columns] = await connection.execute('DESCRIBE equipment');
+    
+    console.log('Colunas encontradas:');
+    columns.forEach(col => {
+      console.log(`  - ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Key ? `KEY: ${col.Key}` : ''} ${col.Default !== null ? `DEFAULT: ${col.Default}` : ''}`);
     });
-
-    try {
-        console.log('🔍 Verificando estrutura da tabela equipment...');
-
-        // Verificar se a tabela existe
-        const [tables] = await connection.execute(`
-            SELECT TABLE_NAME 
-            FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = 'hospital_maintenance' AND TABLE_NAME = 'equipment'
-        `);
-
-        if (tables.length === 0) {
-            console.log('❌ Tabela equipment não existe!');
-            return;
-        }
-
-        // Obter estrutura da tabela
-        const [columns] = await connection.execute('DESCRIBE equipment');
-        
-        console.log('\n📋 ESTRUTURA DA TABELA equipment:');
-        console.log('=' .repeat(80));
-        columns.forEach(col => {
-            console.log(`  ${col.Field.padEnd(25)} | ${col.Type.padEnd(30)} | ${col.Null} | ${col.Key} | ${col.Default}`);
+    
+    // Verificar se a coluna patrimonio existe
+    const patrimonioExists = columns.some(col => col.Field === 'patrimonio');
+    console.log(`\n📊 Coluna 'patrimonio' existe: ${patrimonioExists ? '✅ SIM' : '❌ NÃO'}`);
+    
+    if (!patrimonioExists) {
+      console.log('\n🔧 A coluna "patrimonio" não existe. Vamos verificar se existe uma coluna similar...');
+      
+      const similarColumns = columns.filter(col => 
+        col.Field.toLowerCase().includes('patrim') || 
+        col.Field.toLowerCase().includes('asset') ||
+        col.Field.toLowerCase().includes('serial') ||
+        col.Field.toLowerCase().includes('number')
+      );
+      
+      if (similarColumns.length > 0) {
+        console.log('📋 Colunas similares encontradas:');
+        similarColumns.forEach(col => {
+          console.log(`  - ${col.Field} (${col.Type})`);
         });
-
-        // Verificar se há campo company_id
-        const hasCompanyId = columns.find(col => col.Field === 'company_id');
-        console.log('\n🔍 Campo company_id na tabela equipment:', hasCompanyId ? '✅ Existe' : '❌ Não existe');
-
-        // Verificar alguns dados de exemplo
-        console.log('\n📊 Dados de exemplo da tabela equipment:');
-        const [equipmentData] = await connection.execute(`
-            SELECT id, name, code, sector_id, status 
-            FROM equipment 
-            LIMIT 5
-        `);
-        
-        equipmentData.forEach(eq => {
-            console.log(`  ID: ${eq.id} | Nome: ${eq.name} | Código: ${eq.code} | Setor: ${eq.sector_id} | Status: ${eq.status}`);
-        });
-
-    } catch (error) {
-        console.error('❌ Erro ao verificar estrutura:', error.message);
-    } finally {
-        await connection.end();
+      } else {
+        console.log('❌ Nenhuma coluna similar encontrada.');
+      }
     }
+    
+    // Mostrar alguns registros de exemplo
+    console.log('\n📊 Registros de exemplo da tabela equipment:');
+    const [equipments] = await connection.execute('SELECT * FROM equipment LIMIT 3');
+    
+    equipments.forEach((eq, index) => {
+      console.log(`\nEquipamento ${index + 1}:`);
+      Object.keys(eq).forEach(key => {
+        console.log(`  ${key}: ${eq[key]}`);
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro:', error.message);
+  } finally {
+    if (connection) {
+      await connection.end();
+      console.log('\n🔌 Conexão fechada.');
+    }
+  }
 }
 
 checkEquipmentStructure();

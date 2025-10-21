@@ -1,0 +1,9 @@
+@echo off
+echo Parando MySQL/MariaDB...
+net stop mysql
+timeout /t 3
+echo Iniciando MySQL/MariaDB...
+net start mysql
+echo Testando conexao...
+node quick-db-test.cjs
+pause

@@ -5,6 +5,7 @@ export async function PUT(request: NextRequest) {
   console.log('🧪 SIMPLE TEST PUT - Iniciando...');
   
   try {
+    // Não tentar ler o body para evitar o erro
     console.log('✅ SIMPLE TEST PUT - Sucesso!');
 
     return NextResponse.json({
