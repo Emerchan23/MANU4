@@ -290,17 +290,9 @@ export default function ServiceOrderDetailsPage() {
 
               <Separator />
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-sm text-muted-foreground">Custo Estimado</h4>
-                  <p className="mt-1 font-medium">{formatCurrency(serviceOrder.cost)}</p>
-                </div>
-                {serviceOrder.actual_cost && (
-                  <div>
-                    <h4 className="font-medium text-sm text-muted-foreground">Custo Real</h4>
-                    <p className="mt-1 font-medium">{formatCurrency(serviceOrder.actual_cost)}</p>
-                  </div>
-                )}
+              <div>
+                <h4 className="font-medium text-sm text-muted-foreground">Custo Estimado</h4>
+                <p className="mt-1 font-medium">{formatCurrency(serviceOrder.cost)}</p>
               </div>
             </CardContent>
           </Card>

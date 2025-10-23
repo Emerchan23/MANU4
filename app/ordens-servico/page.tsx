@@ -60,6 +60,7 @@ import { DateInput } from "@/components/ui/date-input"
 import { formatCurrency, parseCurrencyValue, applyCurrencyMask } from "@/lib/currency"
 import { convertBRToISO, convertISOToBR } from "@/lib/date-utils"
 import { formatMaintenanceType } from "@/lib/service-order-utils"
+import { CompleteServiceButton } from "@/components/service-orders/complete-service-button"
 
 export default function ServiceOrdersPage() {
   const router = useRouter()
@@ -339,6 +340,22 @@ export default function ServiceOrdersPage() {
     console.log('🔍 DEBUG - Tipos de manutenção disponíveis:', maintenanceTypes);
     console.log('🔍 DEBUG - Quantidade de tipos disponíveis:', maintenanceTypes?.length || 0);
     
+    // Debug detalhado dos campos relacionados ao tipo de manutenção
+    console.log('🔍 DEBUG - Campos de tipo de manutenção na ordem:');
+    console.log('  - order.maintenance_type_id:', order.maintenance_type_id, '(tipo:', typeof order.maintenance_type_id, ')');
+    console.log('  - order.maintenance_type_name:', order.maintenance_type_name);
+    console.log('  - order.maintenance_type:', order.maintenance_type);
+    console.log('  - order.type:', (order as any).type);
+    console.log('  - order.type_id:', (order as any).type_id);
+    
+    // Debug detalhado dos campos relacionados ao tipo de manutenção
+    console.log('🔍 DEBUG - Campos de tipo de manutenção na ordem:');
+    console.log('  - order.maintenance_type_id:', order.maintenance_type_id, '(tipo:', typeof order.maintenance_type_id, ')');
+    console.log('  - order.maintenance_type_name:', order.maintenance_type_name);
+    console.log('  - order.maintenance_type:', order.maintenance_type);
+    console.log('  - order.type:', (order as any).type);
+    console.log('  - order.type_id:', (order as any).type_id);
+    
     // Se não há tipos de manutenção carregados, carregar primeiro
     if (!maintenanceTypes || maintenanceTypes.length === 0) {
       console.log('🔄 Carregando tipos de manutenção antes de abrir o modal...');
@@ -453,6 +470,62 @@ export default function ServiceOrdersPage() {
     const maintenanceTypeId = order.maintenance_type_id || (order as any).type_id || (order as any).maintenance_type_id;
     console.log('🔍 DEBUG - Processando maintenance_type_id:', maintenanceTypeId, typeof maintenanceTypeId);
     
+    // Implementar mapeamento inteligente para corrigir IDs incompatíveis
+    let finalMaintenanceTypeId = maintenanceTypeId;
+    
+    if (maintenanceTypeId) {
+      // Primeiro, verificar se o ID existe na lista atual
+      const foundType = maintenanceTypes.find(type => type.id === maintenanceTypeId || type.id === parseInt(maintenanceTypeId));
+      
+      if (foundType) {
+        console.log('✅ DEBUG - Tipo encontrado na lista:', `${foundType.id} - ${foundType.name}`);
+        finalMaintenanceTypeId = foundType.id;
+      } else {
+        console.log('❌ DEBUG - Tipo NÃO ENCONTRADO na lista. Tentando mapear pelo nome...');
+        console.log('🔍 DEBUG - maintenance_type_name da ordem:', order.maintenance_type_name);
+        
+        // Mapear pelo nome do tipo de manutenção
+        const typeNameMapping = {
+          'PREVENTIVA': 1,
+          'CORRETIVA': 2, 
+          'PREDITIVA': 3,
+          'CALIBRAÇÃO': 4,
+          'CONSULTORIA': 7
+        };
+        
+        const typeName = order.maintenance_type_name?.toUpperCase();
+        if (typeName && typeNameMapping[typeName]) {
+          finalMaintenanceTypeId = typeNameMapping[typeName];
+          console.log(`✅ DEBUG - Mapeamento por nome: "${typeName}" → ID ${finalMaintenanceTypeId}`);
+        } else {
+          // Tentar encontrar por similaridade de nome
+          const similarType = maintenanceTypes.find(type => 
+            type.name.toUpperCase().includes(typeName) || 
+            typeName?.includes(type.name.toUpperCase())
+          );
+          
+          if (similarType) {
+            finalMaintenanceTypeId = similarType.id;
+            console.log(`✅ DEBUG - Mapeamento por similaridade: "${typeName}" → ID ${finalMaintenanceTypeId} (${similarType.name})`);
+          } else {
+            // Fallback para Preventiva (ID 1)
+            finalMaintenanceTypeId = 1;
+            console.log(`⚠️ DEBUG - Fallback aplicado: usando ID 1 (Preventiva) para "${typeName}"`);
+          }
+        }
+        
+        console.log('🔍 DEBUG - Tipos disponíveis na lista:');
+        maintenanceTypes.forEach(type => {
+          console.log(`  - ID: ${type.id} (${typeof type.id}) - Nome: ${type.name}`);
+        });
+      }
+    } else {
+      console.log('⚠️ DEBUG - maintenance_type_id está vazio/nulo!');
+      finalMaintenanceTypeId = 1; // Fallback para Preventiva
+    }
+    
+    console.log('🎯 DEBUG - ID final após mapeamento:', finalMaintenanceTypeId, typeof finalMaintenanceTypeId);
+    
     console.log('🔍 DEBUG - Dados originais da API:', {
       'order.maintenance_type_id': order.maintenance_type_id,
       'order.scheduled_date': order.scheduled_date,
@@ -472,7 +545,7 @@ export default function ServiceOrdersPage() {
       equipment_id: order.equipment_id,
       company_id: order.company_id,
       maintenance_type: order.maintenance_type,
-      maintenance_type_id: maintenanceTypeId,
+      maintenance_type_id: finalMaintenanceTypeId, // Usando o ID mapeado corretamente
       description: order.description,
       priority: order.priority,
       status: order.status,
@@ -486,6 +559,7 @@ export default function ServiceOrdersPage() {
     };
     
     console.log('🔍 DEBUG - FormData final que será setado:', formData);
+    console.log('🔍 DEBUG - Especificamente o maintenance_type_id no formData:', formData.maintenance_type_id, typeof formData.maintenance_type_id);
     
     setEditFormData(formData)
     setEditModalOpen(true)
@@ -593,6 +667,13 @@ export default function ServiceOrdersPage() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  // Função para concluir ordem de serviço
+  const handleCompleteService = async (orderId: number) => {
+    console.log('✅ Ordem concluída com sucesso, ID:', orderId)
+    // Recarregar a lista para atualizar o status
+    await loadServiceOrders()
   }
 
   // Função para cancelar ordem de serviço
@@ -928,9 +1009,6 @@ export default function ServiceOrdersPage() {
                         
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>Custo estimado: {formatCurrency(order.cost || 0)}</span>
-                          {order.actual_cost && (
-                            <span>Custo real: {formatCurrency(order.actual_cost)}</span>
-                          )}
                           <span>Criado em: {order.created_at}</span>
                         </div>
                       </div>
@@ -967,6 +1045,13 @@ export default function ServiceOrdersPage() {
                         >
                           <History className="h-4 w-4" />
                         </Button>
+                        <CompleteServiceButton
+                          orderId={order.id}
+                          orderNumber={order.order_number}
+                          equipmentName={order.equipment_name}
+                          currentStatus={order.status}
+                          onComplete={handleCompleteService}
+                        />
                         {(order.status === 'ABERTA' || order.status === 'AGENDADA') && (
                           <Button
                             variant="outline"
@@ -1175,15 +1260,21 @@ export default function ServiceOrdersPage() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
+                    <SelectValue 
+                      placeholder="Selecione o tipo"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {maintenanceTypes && maintenanceTypes.length > 0 ? (
-                      maintenanceTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))
+                      maintenanceTypes.map((type) => {
+                        const isSelected = type.id === editFormData.maintenance_type_id || type.id.toString() === editFormData.maintenance_type_id?.toString();
+                        console.log(`🔧 DEBUG - Tipo ${type.name} (ID: ${type.id}): selecionado = ${isSelected}`);
+                        return (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        );
+                      })
                     ) : (
                       <SelectItem value="none" disabled>
                         Nenhum tipo disponível

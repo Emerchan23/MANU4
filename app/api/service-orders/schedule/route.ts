@@ -250,10 +250,30 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
+    // Validar e processar a data
+    let processedDate;
+    try {
+      const dateObj = new Date(scheduledDate);
+      if (isNaN(dateObj.getTime())) {
+        console.error('❌ Data inválida recebida:', scheduledDate);
+        return NextResponse.json(
+          { success: false, error: 'Data agendada inválida' },
+          { status: 400 }
+        );
+      }
+      processedDate = dateObj.toISOString().slice(0, 19).replace('T', ' ');
+    } catch (error) {
+      console.error('❌ Erro ao processar data:', error, 'Data recebida:', scheduledDate);
+      return NextResponse.json(
+        { success: false, error: 'Erro ao processar data agendada' },
+        { status: 400 }
+      );
+    }
+
     console.log('💾 Salvando dados:', {
       equipmentId,
       description,
-      scheduledDate: new Date(scheduledDate).toISOString().slice(0, 19).replace('T', ' '),
+      scheduledDate: processedDate,
       dbPriority,
       assignedTo: assignedTo || null,
       createdBy: createdBy || 1,
@@ -266,7 +286,7 @@ export async function POST(request: NextRequest) {
     const [result] = await connection.execute(insertQuery, [
       equipmentId,
       description,
-      new Date(scheduledDate).toISOString().slice(0, 19).replace('T', ' '),
+      processedDate,
       dbPriority,
       assignedTo || null,
       createdBy || 1,

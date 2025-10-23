@@ -21,6 +21,7 @@ interface Equipment {
   id: number
   name: string
   code: string
+  patrimonio_number: string
   model: string
   manufacturer: string
   sector_name: string
@@ -586,7 +587,7 @@ export default function RelatoriosPage() {
                                 <div className="flex-1">
                                   <h4 className="font-medium text-gray-900 mb-1">{equipment.name}</h4>
                                   <p className="text-sm text-gray-600">
-                                    <span className="font-medium">Código:</span> {equipment.code}
+                                    <span className="font-medium">Patrimônio:</span> {equipment.patrimonio_number}
                                   </p>
                                   <p className="text-sm text-gray-600">
                                     <span className="font-medium">Setor:</span> {equipment.sector_name}
@@ -628,8 +629,8 @@ export default function RelatoriosPage() {
                             <h4 className="font-medium text-gray-900 mb-3">{selectedEquipment.name}</h4>
                             <div className="space-y-2 text-sm">
                               <div>
-                                <span className="font-medium text-gray-700">Código:</span>
-                                <span className="ml-2 text-gray-600">{selectedEquipment.code}</span>
+                                <span className="font-medium text-gray-700">Patrimônio:</span>
+                                <span className="ml-2 text-gray-600">{selectedEquipment.patrimonio_number}</span>
                               </div>
                               <div>
                                 <span className="font-medium text-gray-700">Modelo:</span>

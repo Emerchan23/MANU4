@@ -579,8 +579,9 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Verificar se o agendamento pode ser excluído (não está concluído)
     const schedule = existingSchedule[0];
+    
+    // Verificar se o agendamento pode ser excluído (não está concluído)
     if (schedule.status === 'completed' || schedule.status === 'concluido') {
       return res.status(400).json({
         success: false,
@@ -588,21 +589,118 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Excluir agendamento
-    await query('DELETE FROM maintenance_schedules WHERE id = ?', [id]);
+    // Verificar se é um agendamento principal (tem filhos recorrentes)
+    let childSchedules = [];
+    let isParentSchedule = false;
+    
+    if (!schedule.parent_schedule_id) {
+      // É um agendamento principal, verificar se tem filhos
+      childSchedules = await query(
+        'SELECT id FROM maintenance_schedules WHERE parent_schedule_id = ?', 
+        [id]
+      );
+      isParentSchedule = childSchedules.length > 0;
+    }
 
-    console.log('✅ [AGENDAMENTOS API] Agendamento excluído com sucesso');
-
-    res.json({
-      success: true,
-      message: 'Agendamento excluído com sucesso'
-    });
+    let deletedCount = 0;
+    
+    if (isParentSchedule) {
+      console.log(`📋 [AGENDAMENTOS API] Agendamento principal com ${childSchedules.length} filhos recorrentes`);
+      
+      // Excluir todos os agendamentos filhos primeiro
+      for (const child of childSchedules) {
+        await query('DELETE FROM maintenance_schedules WHERE id = ?', [child.id]);
+        deletedCount++;
+      }
+      
+      // Excluir o agendamento principal
+      await query('DELETE FROM maintenance_schedules WHERE id = ?', [id]);
+      deletedCount++;
+      
+      console.log(`✅ [AGENDAMENTOS API] Excluídos ${deletedCount} agendamentos (1 principal + ${childSchedules.length} recorrentes)`);
+      
+      res.json({
+        success: true,
+        message: `Agendamento principal e ${childSchedules.length} agendamentos recorrentes excluídos com sucesso`,
+        deletedCount: deletedCount,
+        isRecurring: true,
+        recurringCount: childSchedules.length
+      });
+    } else {
+      // Excluir apenas o agendamento individual
+      await query('DELETE FROM maintenance_schedules WHERE id = ?', [id]);
+      deletedCount = 1;
+      
+      console.log('✅ [AGENDAMENTOS API] Agendamento individual excluído com sucesso');
+      
+      res.json({
+        success: true,
+        message: 'Agendamento excluído com sucesso',
+        deletedCount: deletedCount,
+        isRecurring: false,
+        recurringCount: 0
+      });
+    }
 
   } catch (error) {
     console.error('❌ [AGENDAMENTOS API] Erro ao excluir agendamento:', error);
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor ao excluir agendamento'
+    });
+  }
+});
+
+// GET - Verificar se agendamento tem recorrências
+router.get('/:id/recurrence-info', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🔍 [AGENDAMENTOS API] Verificando recorrências para agendamento ID: ${id}`);
+
+    // Verificar se o agendamento existe
+    const existingSchedule = await query('SELECT * FROM maintenance_schedules WHERE id = ?', [id]);
+    if (existingSchedule.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Agendamento não encontrado'
+      });
+    }
+
+    const schedule = existingSchedule[0];
+    let hasRecurrence = false;
+    let recurringCount = 0;
+    let isParent = false;
+
+    // Verificar se é um agendamento principal (sem parent_schedule_id)
+    if (!schedule.parent_schedule_id) {
+      // Contar quantos agendamentos filhos existem
+      const childSchedules = await query(
+        'SELECT COUNT(*) as count FROM maintenance_schedules WHERE parent_schedule_id = ?', 
+        [id]
+      );
+      recurringCount = childSchedules[0]?.count || 0;
+      hasRecurrence = recurringCount > 0;
+      isParent = true;
+    }
+
+    console.log(`📊 [AGENDAMENTOS API] Agendamento ${id}: isParent=${isParent}, hasRecurrence=${hasRecurrence}, recurringCount=${recurringCount}`);
+
+    res.json({
+      success: true,
+      data: {
+        scheduleId: id,
+        hasRecurrence: hasRecurrence,
+        recurringCount: recurringCount,
+        isParent: isParent,
+        isChild: !!schedule.parent_schedule_id
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [AGENDAMENTOS API] Erro ao verificar recorrências:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor ao verificar recorrências'
     });
   }
 });

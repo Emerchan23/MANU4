@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       SELECT DISTINCT
         e.id,
         e.name,
-        e.serial_number as code,
+        e.patrimonio_number,
         e.model,
         e.manufacturer,
         COALESCE(s.name, 'Sem setor') as sector_name
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     if (searchQuery && searchQuery.length >= 2) {
       conditions.push(`(
         e.name LIKE ? 
-        OR e.serial_number LIKE ?
+        OR e.patrimonio_number LIKE ?
         OR e.manufacturer LIKE ?
         OR e.model LIKE ?
       )`)

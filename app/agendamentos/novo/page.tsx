@@ -128,8 +128,49 @@ export default function NovoAgendamentoPage() {
     
     if (match) {
       const [, day, month, year, hours, minutes] = match
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes))
-      return date.toISOString().slice(0, 16)
+      
+      // Validar se os valores são válidos
+      const dayNum = parseInt(day)
+      const monthNum = parseInt(month)
+      const yearNum = parseInt(year)
+      const hoursNum = parseInt(hours)
+      const minutesNum = parseInt(minutes)
+      
+      // Verificar se os valores estão dentro dos limites válidos
+      if (dayNum < 1 || dayNum > 31 || 
+          monthNum < 1 || monthNum > 12 || 
+          yearNum < 1900 || yearNum > 2100 ||
+          hoursNum < 0 || hoursNum > 23 ||
+          minutesNum < 0 || minutesNum > 59) {
+        console.error('Data inválida:', { day: dayNum, month: monthNum, year: yearNum, hours: hoursNum, minutes: minutesNum })
+        return ""
+      }
+      
+      try {
+        const date = new Date(yearNum, monthNum - 1, dayNum, hoursNum, minutesNum)
+        
+        // Verificar se a data criada é válida
+        if (isNaN(date.getTime())) {
+          console.error('Data inválida após criação:', date)
+          return ""
+        }
+        
+        // Verificar se a data não foi "corrigida" pelo JavaScript (ex: 31/02 vira 03/03)
+        if (date.getDate() !== dayNum || 
+            date.getMonth() !== (monthNum - 1) || 
+            date.getFullYear() !== yearNum) {
+          console.error('Data foi corrigida pelo JavaScript:', { 
+            original: { day: dayNum, month: monthNum, year: yearNum },
+            corrected: { day: date.getDate(), month: date.getMonth() + 1, year: date.getFullYear() }
+          })
+          return ""
+        }
+        
+        return date.toISOString().slice(0, 16)
+      } catch (error) {
+        console.error('Erro ao criar data:', error)
+        return ""
+      }
     }
     return ""
   }
@@ -346,7 +387,7 @@ export default function NovoAgendamentoPage() {
     // Validar se a data não é no passado
     const isoDate = formatDateFromBR(formData.scheduledDate)
     if (!isoDate) {
-      toast.error('Data inválida')
+      toast.error('Data inválida. Verifique se a data está no formato correto (dd/mm/yyyy hh:mm) e se é uma data válida.')
       return false
     }
     

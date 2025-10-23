@@ -28,7 +28,8 @@ import {
   ArrowLeft,
   FileText,
   ArrowRight,
-  ThumbsUp
+  ThumbsUp,
+  Repeat
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -74,6 +75,7 @@ export default function AgendamentosListaPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [scheduleToDelete, setScheduleToDelete] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [scheduleRecurrenceInfo, setScheduleRecurrenceInfo] = useState<{[key: string]: any}>({})
 
   // Verificar se há agendamentos com técnicos atribuídos para mostrar a coluna
   const hasAssignedTechnicians = schedules.some(schedule => schedule.assigned_technician_name)
@@ -81,6 +83,49 @@ export default function AgendamentosListaPage() {
   useEffect(() => {
     fetchSchedules(filters)
   }, [filters])
+
+  // Função para buscar informações de recorrência dos agendamentos
+  const fetchRecurrenceInfo = async (scheduleId: string) => {
+    try {
+      console.log(`🔍 Buscando informações de recorrência para agendamento ID: ${scheduleId}`)
+      const response = await fetch(`/api/agendamentos/${scheduleId}/recurrence-info`)
+      console.log(`📡 Response status para ID ${scheduleId}:`, response.status)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`📊 Dados de recorrência para ID ${scheduleId}:`, data)
+        
+        if (data.success) {
+          setScheduleRecurrenceInfo(prev => ({
+            ...prev,
+            [scheduleId]: data.data
+          }))
+          console.log(`✅ Informações de recorrência salvas para ID ${scheduleId}:`, data.data)
+        } else {
+          console.log(`❌ Falha na resposta para ID ${scheduleId}:`, data)
+        }
+      } else {
+        console.log(`❌ Erro HTTP ${response.status} para ID ${scheduleId}`)
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar informações de recorrência para ID ${scheduleId}:`, error)
+    }
+  }
+
+  // Buscar informações de recorrência para todos os agendamentos quando a lista carrega
+  useEffect(() => {
+    if (schedules.length > 0) {
+      console.log(`🔄 Carregando informações de recorrência para ${schedules.length} agendamentos`)
+      schedules.forEach(schedule => {
+        if (!scheduleRecurrenceInfo[schedule.id]) {
+          console.log(`🆕 Buscando recorrência para novo agendamento ID: ${schedule.id}`)
+          fetchRecurrenceInfo(schedule.id)
+        } else {
+          console.log(`✅ Recorrência já carregada para ID: ${schedule.id}`, scheduleRecurrenceInfo[schedule.id])
+        }
+      })
+    }
+  }, [schedules])
 
   // Função para filtrar agendamentos baseado no termo de busca
   useEffect(() => {
@@ -101,7 +146,7 @@ export default function AgendamentosListaPage() {
         
         // Buscar por data do agendamento (formato brasileiro)
         const dateMatch = schedule.scheduled_date && 
-          new Date(schedule.scheduled_date).toLocaleDateString('pt-BR').includes(searchTerm)
+          schedule.scheduled_date.includes && schedule.scheduled_date.includes(searchTerm)
         
         return equipmentMatch || patrimonioMatch || companyMatch || dateMatch
       })
@@ -217,9 +262,18 @@ export default function AgendamentosListaPage() {
     }
   }
 
-  const handleDeleteSchedule = (schedule: any) => {
+  const handleDeleteSchedule = async (schedule: any) => {
     setScheduleToDelete(schedule)
-    setDeleteModalOpen(true)
+    
+    // Verificar se o agendamento tem recorrências
+    const recurrenceInfo = scheduleRecurrenceInfo[schedule.id]
+    if (recurrenceInfo?.hasRecurrence) {
+      // Usar modal especial para agendamentos recorrentes
+      setDeleteModalOpen(true)
+    } else {
+      // Usar modal padrão para agendamentos simples
+      setDeleteModalOpen(true)
+    }
   }
 
   const confirmDeleteSchedule = async () => {
@@ -300,14 +354,7 @@ export default function AgendamentosListaPage() {
 
       if (data.success) {
         toast.success(`Ordem de serviço ${data.data.orderNumber} criada com sucesso!`, {
-          description: 'O agendamento foi convertido em ordem de serviço.',
-          action: {
-            label: 'Ver OS',
-            onClick: () => {
-              // TODO: Navegar para a página da ordem de serviço
-              window.open(`/ordens-servico/${data.data.serviceOrder.id}`, '_blank')
-            }
-          }
+          description: 'O agendamento foi convertido em ordem de serviço.'
         })
         
         // Atualizar a lista
@@ -395,7 +442,7 @@ export default function AgendamentosListaPage() {
       case 'SCHEDULED': return 'bg-blue-100 text-blue-800'
       case 'IN_PROGRESS': return 'bg-amber-100 text-amber-800'
       case 'COMPLETED': return 'bg-green-100 text-green-800'
-      case 'OS_GERADA': return 'bg-purple-100 text-purple-800'
+      case 'OS_GERADA': return 'bg-green-100 text-green-800'
       case 'OVERDUE': return 'bg-red-100 text-red-800'
       case 'CANCELLED': return 'bg-red-100 text-red-800'
       // Status do banco de dados
@@ -403,7 +450,7 @@ export default function AgendamentosListaPage() {
       case 'EM_ANDAMENTO': return 'bg-amber-100 text-amber-800'
       case 'CONCLUIDA': return 'bg-green-100 text-green-800'
       case 'CANCELADA': return 'bg-red-100 text-red-800'
-      case 'CONVERTIDA': return 'bg-purple-100 text-purple-800'
+      case 'CONVERTIDA': return 'bg-green-100 text-green-800'
       // Status em português (ordens de serviço)
       case 'aberta': return 'bg-blue-100 text-blue-800'
       case 'em_andamento': return 'bg-amber-100 text-amber-800'
@@ -746,9 +793,48 @@ export default function AgendamentosListaPage() {
                         <div className="flex items-start gap-2">
                           <Building className="h-4 w-4 text-gray-400 mt-0.5" />
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-gray-900 truncate" title={schedule.equipment_name}>
-                              {schedule.equipment_name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900 truncate" title={schedule.equipment_name}>
+                                {schedule.equipment_name}
+                              </p>
+                              {/* Indicador de Recorrência */}
+                              {(() => {
+                                const recurrenceInfo = scheduleRecurrenceInfo[schedule.id];
+                                
+                                // Log específico para o agendamento 959
+                                if (schedule.id === 959) {
+                                  console.log(`🎯 AGENDAMENTO 959 - ANÁLISE COMPLETA:`, {
+                                    scheduleId: schedule.id,
+                                    recurrenceInfo: recurrenceInfo,
+                                    hasRecurrence: recurrenceInfo?.hasRecurrence,
+                                    recurringCount: recurrenceInfo?.recurringCount,
+                                    isParent: recurrenceInfo?.isParent,
+                                    shouldShowBadge: !!recurrenceInfo?.hasRecurrence
+                                  });
+                                }
+                                
+                                console.log(`🔍 Verificando badge para ID ${schedule.id}:`, recurrenceInfo);
+                                
+                                if (recurrenceInfo?.hasRecurrence) {
+                                  console.log(`✅ Exibindo badge para ID ${schedule.id} com ${recurrenceInfo.recurringCount} filhos`);
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <Badge 
+                                        variant="secondary" 
+                                        className="bg-blue-100 text-blue-800 border-blue-200 text-xs px-2 py-0.5 flex items-center gap-1"
+                                        title={`Este agendamento possui ${recurrenceInfo.recurringCount} agendamentos recorrentes`}
+                                      >
+                                        <Repeat className="h-3 w-3" />
+                                        Recorrente ({recurrenceInfo.recurringCount})
+                                      </Badge>
+                                    </div>
+                                  );
+                                } else {
+                                  console.log(`❌ Não exibindo badge para ID ${schedule.id} - hasRecurrence:`, recurrenceInfo?.hasRecurrence);
+                                  return null;
+                                }
+                              })()}
+                            </div>
                             {(schedule.equipment_patrimonio_number || schedule.equipment_code) && (
                               <p className="text-sm text-gray-600 flex items-center gap-1">
                                 <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
@@ -779,13 +865,26 @@ export default function AgendamentosListaPage() {
 
                       <div className="col-span-1">
                         <p className="text-sm text-gray-900">
-                          {new Date(schedule.scheduled_date).toLocaleDateString('pt-BR')}
+                          {schedule.scheduled_date || 'Data não informada'}
                         </p>
                         <p className="text-xs text-gray-600">
-                          {new Date(schedule.scheduled_date).toLocaleTimeString('pt-BR', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
+                          {schedule.scheduled_date && schedule.scheduled_date !== 'Data não informada' ? (
+                            (() => {
+                              try {
+                                // Tentar extrair a hora se a data original estiver disponível
+                                const originalDate = new Date(schedule.scheduled_date);
+                                if (!isNaN(originalDate.getTime())) {
+                                  return originalDate.toLocaleTimeString('pt-BR', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  });
+                                }
+                                return '00:00';
+                              } catch {
+                                return '00:00';
+                              }
+                            })()
+                          ) : '00:00'}
                         </p>
                       </div>
 
@@ -952,6 +1051,16 @@ export default function AgendamentosListaPage() {
             >
               Próximo
             </Button>
+            
+            {/* Botão para ir para a página 3 onde está o agendamento 959 */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handlePageChange(3)}
+              className="ml-4 bg-blue-100 text-blue-800 hover:bg-blue-200"
+            >
+              Ir para Página 3 (ID 959)
+            </Button>
           </div>
         </div>
       )}
@@ -960,10 +1069,37 @@ export default function AgendamentosListaPage() {
       <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogTitle>
+              {scheduleRecurrenceInfo[scheduleToDelete?.id]?.hasRecurrence ? 
+                'Confirmar Exclusão de Agendamento Recorrente' : 
+                'Confirmar Exclusão'
+              }
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o agendamento "{scheduleToDelete?.equipment_name}"?
-              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+              {scheduleRecurrenceInfo[scheduleToDelete?.id]?.hasRecurrence ? (
+                <div className="space-y-2">
+                  <p className="font-medium text-amber-600 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Atenção: Este é um agendamento recorrente!
+                  </p>
+                  <p>
+                    O agendamento "{scheduleToDelete?.equipment_name}" possui{' '}
+                    <strong>{scheduleRecurrenceInfo[scheduleToDelete?.id]?.recurringCount} agendamentos recorrentes</strong> vinculados.
+                  </p>
+                  <p className="text-red-600 font-medium">
+                    Ao confirmar, TODOS os {scheduleRecurrenceInfo[scheduleToDelete?.id]?.recurringCount + 1} agendamentos 
+                    (principal + recorrentes) serão excluídos permanentemente.
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Esta ação não pode ser desfeita.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir o agendamento "{scheduleToDelete?.equipment_name}"?
+                  Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -973,7 +1109,11 @@ export default function AgendamentosListaPage() {
               disabled={isDeleting} 
               className="bg-red-600 hover:bg-red-700"
             >
-              {isDeleting ? 'Excluindo...' : 'Excluir'}
+              {isDeleting ? 'Excluindo...' : 
+                scheduleRecurrenceInfo[scheduleToDelete?.id]?.hasRecurrence ? 
+                  `Excluir Todos (${(scheduleRecurrenceInfo[scheduleToDelete?.id]?.recurringCount || 0) + 1})` : 
+                  'Excluir'
+              }
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { formatDateBR, formatDateISO } from '@/lib/date-utils-br'
+import { query } from '@/lib/database'
 
 // POST - Atualizar ordem de serviço (usando POST para evitar problemas com PUT)
 export async function POST(
@@ -131,8 +132,10 @@ export async function POST(
 
     if (completionDate !== undefined) {
       updateFields.push('completion_date = ?')
+      console.log('🗓️ Processando data de conclusão:', completionDate)
       if (completionDate) {
         const formattedDate = formatDateISO(completionDate)
+        console.log('🗓️ Data formatada:', formattedDate)
         updateValues.push(formattedDate || null)
       } else {
         updateValues.push(null)

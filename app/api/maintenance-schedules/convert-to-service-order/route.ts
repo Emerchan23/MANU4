@@ -257,6 +257,13 @@ export async function POST(request: NextRequest) {
       maintenance_plan_name: schedule.maintenance_plan_name
     });
     
+    // Logs detalhados para debug
+    console.log('🔍 DEBUG - Dados do agendamento para tipo de manutenção:');
+    console.log('  - schedule.maintenance_type:', schedule.maintenance_type);
+    console.log('  - schedule.maintenance_type_name:', schedule.maintenance_type_name);
+    console.log('  - schedule.maintenance_plan_name:', schedule.maintenance_plan_name);
+    console.log('  - schedule.maintenance_plan_id:', schedule.maintenance_plan_id);
+
     // Mapear o tipo de manutenção do agendamento para o formato correto
     if (schedule.maintenance_type) {
       const typeMapping = {
@@ -265,17 +272,48 @@ export async function POST(request: NextRequest) {
         'preditiva': 'PREDITIVA',
         'Preventiva': 'PREVENTIVA',
         'Corretiva': 'CORRETIVA',
-        'Preditiva': 'PREDITIVA'
+        'Preditiva': 'PREDITIVA',
+        'PREVENTIVA': 'PREVENTIVA',
+        'CORRETIVA': 'CORRETIVA',
+        'PREDITIVA': 'PREDITIVA'
       };
-      maintenanceTypeName = typeMapping[schedule.maintenance_type] || 'PREVENTIVA';
+      maintenanceTypeName = typeMapping[schedule.maintenance_type] || schedule.maintenance_type.toUpperCase();
+      console.log('✅ Usando maintenance_type:', schedule.maintenance_type, '-> mapeado para:', maintenanceTypeName);
     } else if (schedule.maintenance_type_name) {
       maintenanceTypeName = schedule.maintenance_type_name.toUpperCase();
+      console.log('✅ Usando maintenance_type_name:', schedule.maintenance_type_name, '-> mapeado para:', maintenanceTypeName);
     } else if (schedule.maintenance_plan_name) {
       // Se não tem tipo específico, usar o nome do plano de manutenção
       maintenanceTypeName = schedule.maintenance_plan_name.toUpperCase();
+      console.log('✅ Usando maintenance_plan_name:', schedule.maintenance_plan_name, '-> mapeado para:', maintenanceTypeName);
+    } else {
+      // Fallback: buscar tipo do plano de manutenção
+      if (schedule.maintenance_plan_id) {
+        console.log('🔍 Buscando tipo do plano de manutenção ID:', schedule.maintenance_plan_id);
+        const [planRows] = await connection.execute(`
+          SELECT maintenance_type FROM maintenance_plans WHERE id = ? LIMIT 1
+        `, [schedule.maintenance_plan_id]);
+        
+        if (planRows && planRows.length > 0 && planRows[0].maintenance_type) {
+          const planType = planRows[0].maintenance_type;
+          const typeMapping = {
+            'PREVENTIVE': 'PREVENTIVA',
+            'CORRECTIVE': 'CORRETIVA',
+            'PREDICTIVE': 'PREDITIVA'
+          };
+          maintenanceTypeName = typeMapping[planType] || planType;
+          console.log('✅ Tipo encontrado no plano:', planType, '-> mapeado para:', maintenanceTypeName);
+        }
+      }
+      
+      // Se ainda não encontrou, usar fallback padrão
+      if (!maintenanceTypeName) {
+        maintenanceTypeName = 'PREVENTIVA';
+        console.log('⚠️ Usando fallback padrão: PREVENTIVA');
+      }
     }
 
-    console.log('🔧 Tipo de manutenção determinado:', maintenanceTypeName);
+    console.log('🔧 Tipo de manutenção final determinado:', maintenanceTypeName);
 
     // Buscar ou criar tipo de manutenção
     console.log('🔍 Buscando tipo de manutenção:', maintenanceTypeName);
