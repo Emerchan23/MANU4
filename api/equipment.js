@@ -10,6 +10,9 @@ const getEquipments = async (req, res) => {
       SELECT 
         e.id,
         e.name,
+        e.patrimonio_number,
+        e.patrimony,
+        e.code,
         e.model,
         e.serial_number,
         e.manufacturer,
@@ -45,13 +48,14 @@ const getEquipments = async (req, res) => {
     const transformedData = rows.map(equipment => ({
       id: equipment.id,
       name: equipment.name,
+      patrimonio_number: equipment.patrimonio_number || equipment.patrimony || equipment.code,
       model: equipment.model,
       serial_number: equipment.serial_number,
       manufacturer: equipment.manufacturer,
       sector_id: equipment.sector_id,
       category_id: equipment.category_id,
       subsector_id: equipment.subsector_id,
-      acquisition_date: equipment.acquisition_date,
+      installation_date: equipment.acquisition_date,
       last_maintenance: equipment.last_maintenance,
       next_maintenance: equipment.next_maintenance,
       warranty_expiry: equipment.warranty_expiry,
@@ -62,20 +66,20 @@ const getEquipments = async (req, res) => {
       location: equipment.location,
       is_active: equipment.is_active,
       voltage: equipment.voltage,
-      // Campos relacionados (joins)
       sector_name: equipment.sector_name,
       category_name: equipment.category_name,
-      subsector_name: equipment.subsector_name,
+      subsector_name: equipment.subsector_name
     }));
+    
+    console.log('✅ [EQUIPMENT API] Dados transformados com sucesso');
     
     res.json({
       success: true,
-      data: transformedData
+      data: transformedData,
+      total: transformedData.length
     });
-    console.log('✅ [EQUIPMENT API] Resposta enviada com sucesso');
   } catch (error) {
     console.error('❌ [EQUIPMENT API] Erro ao buscar equipamentos:', error);
-    console.error('❌ [EQUIPMENT API] Stack trace:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -132,6 +136,7 @@ const createEquipment = async (req, res) => {
     const {
       name,
       patrimonio,
+      patrimonio_number,
       model,
       serial_number,
       manufacturer,
@@ -156,17 +161,82 @@ const createEquipment = async (req, res) => {
       });
     }
 
+    // Usar patrimonio_number se disponível, senão usar patrimonio
+    const patrimonioValue = patrimonio_number || patrimonio;
+    
+    if (!patrimonioValue) {
+      return res.status(400).json({
+        success: false,
+        message: 'Número do patrimônio é obrigatório'
+      });
+    }
+
+    // Verificar se o patrimônio já existe
+    const existingPatrimonio = await query(
+      'SELECT id FROM equipment WHERE patrimonio_number = ? OR patrimony = ? OR code = ?',
+      [patrimonioValue, patrimonioValue, patrimonioValue]
+    );
+
+    if (existingPatrimonio.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Número do patrimônio já existe'
+      });
+    }
+
+    // Verificar se o número de série já existe (se fornecido)
+    if (serial_number) {
+      const existingSerial = await query(
+        'SELECT id FROM equipment WHERE serial_number = ?',
+        [serial_number]
+      );
+
+      if (existingSerial.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número de série já existe'
+        });
+      }
+    }
+
+    // Gerar código automaticamente se não fornecido
+    const codeValue = patrimonioValue.startsWith('PAT') ? patrimonioValue : `PAT${patrimonioValue}`;
+    
+    console.log('🔍 [EQUIPMENT API] Valores para inserção:');
+    console.log('  - patrimonioValue:', patrimonioValue);
+    console.log('  - codeValue:', codeValue);
+
     const queryStr = `
       INSERT INTO equipment (
-        name, patrimony, code, model, serial_number, manufacturer, sector_id, category_id,
-        subsector_id, acquisition_date, maintenance_frequency_days, warranty_expiry, status, observations, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        name, code, patrimonio_number, model, serial_number, manufacturer, sector_id, category_id,
+        subsector_id, acquisition_date, maintenance_frequency_days, warranty_expiry, status, observations, voltage, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
+
+    console.log('🔍 [EQUIPMENT API] Query SQL:', queryStr);
+    console.log('🔍 [EQUIPMENT API] Parâmetros:', [
+      name,
+      codeValue,
+      patrimonioValue,
+      model || null,
+      serial_number || null,
+      manufacturer || null,
+      sector_id || null,
+      category_id || null,
+      subsector_id || null,
+      installation_date || null,
+      maintenance_frequency_days || null,
+      warranty_expiry || null,
+      status || 'ativo',
+      observations || null,
+      voltage || null,
+      1
+    ]);
 
     const result = await query(queryStr, [
       name,
-      patrimonio || null, // patrimony
-      patrimonio || null, // code (using same value as patrimony)
+      codeValue, // code (with PAT prefix) - campo obrigatório
+      patrimonioValue, // patrimonio_number
       model || null,
       serial_number || null,
       manufacturer || null,
@@ -178,6 +248,7 @@ const createEquipment = async (req, res) => {
       warranty_expiry || null,
       status || 'ativo',
       observations || null,
+      voltage || null,
       1 // is_active = true
     ]);
 
@@ -198,6 +269,23 @@ const createEquipment = async (req, res) => {
   } catch (error) {
     console.error('❌ [EQUIPMENT API] Erro ao criar equipamento:', error);
     console.error('❌ [EQUIPMENT API] Stack trace:', error.stack);
+    
+    // Tratar erros específicos de duplicação
+    if (error.code === 'ER_DUP_ENTRY') {
+      if (error.message.includes('patrimonio') || error.message.includes('patrimony') || error.message.includes('code')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número do patrimônio já existe'
+        });
+      }
+      if (error.message.includes('serial')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número de série já existe'
+        });
+      }
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
@@ -250,6 +338,36 @@ const updateEquipment = async (req, res) => {
       });
     }
 
+    // Verificar se o patrimônio já existe em outro equipamento
+    if (patrimonio_number) {
+      const existingPatrimonio = await query(
+        'SELECT id FROM equipment WHERE (patrimonio_number = ? OR patrimony = ? OR code = ?) AND id != ?',
+        [patrimonio_number, patrimonio_number, patrimonio_number, id]
+      );
+
+      if (existingPatrimonio.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número do patrimônio já existe em outro equipamento'
+        });
+      }
+    }
+
+    // Verificar se o número de série já existe em outro equipamento (se fornecido)
+    if (serial_number) {
+      const existingSerial = await query(
+        'SELECT id FROM equipment WHERE serial_number = ? AND id != ?',
+        [serial_number, id]
+      );
+
+      if (existingSerial.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número de série já existe em outro equipamento'
+        });
+      }
+    }
+
     console.log('✅ [UPDATE EQUIPMENT] Equipamento encontrado, executando update...');
     
     const queryStr = `
@@ -257,7 +375,7 @@ const updateEquipment = async (req, res) => {
         name = ?, model = ?, serial_number = ?, manufacturer = ?,
         sector_id = ?, category_id = ?, subsector_id = ?,
         acquisition_date = ?, maintenance_frequency_days = ?, observations = ?, 
-        patrimony = ?, status = ?, updated_at = NOW()
+        patrimonio_number = ?, patrimony = ?, code = ?, voltage = ?, status = ?, updated_at = NOW()
       WHERE id = ?
     `;
 
@@ -273,6 +391,9 @@ const updateEquipment = async (req, res) => {
       maintenance_frequency_days || null,
       observations || null,
       patrimonio_number || null,
+      patrimonio_number || null, // patrimony
+      patrimonio_number || null, // code
+      voltage || null,
       status || 'ativo',
       id
     ];
@@ -298,6 +419,23 @@ const updateEquipment = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [UPDATE EQUIPMENT] Erro ao atualizar equipamento:', error);
+    
+    // Tratar erros específicos de duplicação
+    if (error.code === 'ER_DUP_ENTRY') {
+      if (error.message.includes('patrimonio') || error.message.includes('patrimony') || error.message.includes('code')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número do patrimônio já existe em outro equipamento'
+        });
+      }
+      if (error.message.includes('serial')) {
+        return res.status(409).json({
+          success: false,
+          message: 'Número de série já existe em outro equipamento'
+        });
+      }
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

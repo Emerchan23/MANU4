@@ -175,6 +175,15 @@ export default function EquipmentForm({ equipment, onSave, onCancel }: Equipment
     if (field === 'patrimonio_number') {
       // Remove o prefixo PAT se já existir para evitar duplicação
       let cleanValue = value.replace(/^PAT/i, '');
+      
+      // Validação: aceitar apenas números
+      cleanValue = cleanValue.replace(/\D/g, '');
+      
+      // Limitar a 6 dígitos para evitar números muito longos
+      if (cleanValue.length > 6) {
+        cleanValue = cleanValue.substring(0, 6);
+      }
+      
       // Adiciona o prefixo PAT automaticamente
       const finalValue = cleanValue ? `PAT${cleanValue}` : '';
       setFormData(prev => ({ ...prev, [field]: finalValue }));
@@ -194,6 +203,18 @@ export default function EquipmentForm({ equipment, onSave, onCancel }: Equipment
     
     if (!formData.patrimonio_number?.trim()) {
       alert('Número do patrimônio é obrigatório');
+      return;
+    }
+
+    // Validação do formato do patrimônio
+    const patrimonioNumber = formData.patrimonio_number.replace(/^PAT/i, '');
+    if (!/^\d+$/.test(patrimonioNumber)) {
+      alert('O número do patrimônio deve conter apenas números');
+      return;
+    }
+
+    if (patrimonioNumber.length < 1) {
+      alert('O número do patrimônio deve ter pelo menos 1 dígito');
       return;
     }
 
@@ -263,11 +284,14 @@ export default function EquipmentForm({ equipment, onSave, onCancel }: Equipment
                     onChange={(e) => handleInputChange('patrimonio_number', e.target.value)}
                     placeholder="001"
                     className="pl-12"
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    maxLength={6}
                     required
                   />
                 </div>
                 <p className="text-xs text-gray-500">
-                  Digite apenas o número. O prefixo "PAT" será adicionado automaticamente.
+                  Digite apenas números (máximo 6 dígitos). O prefixo "PAT" será adicionado automaticamente.
                 </p>
               </div>
               
