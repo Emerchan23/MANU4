@@ -6,30 +6,35 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const equipmentId = parseInt(params.id)
+
+  if (isNaN(equipmentId)) {
+    return NextResponse.json(
+      { error: 'ID do equipamento inválido' },
+      { status: 400 }
+    )
+  }
+
+  let connection
   try {
-    const equipmentId = parseInt(params.id)
-
-    if (isNaN(equipmentId)) {
-      return NextResponse.json(
-        { error: 'ID do equipamento inválido' },
-        { status: 400 }
-      )
-    }
-
-    const connection = await getConnection()
+    connection = await getConnection()
     
-    // Buscar dados do equipamento
-    const [equipmentRows] = await connection.execute(`
-      SELECT 
-        e.*,
-        s.name as sector_name
-      FROM equipment e
-      LEFT JOIN sectors s ON e.sector_id = s.id
-      WHERE e.id = ?
-    `, [equipmentId])
+    // Buscar dados do equipamento com timeout
+    const [equipmentRows] = await Promise.race([
+      connection.execute(`
+        SELECT 
+          e.id, e.name, e.serial_number, e.code, e.model, 
+          e.manufacturer, e.status, s.name as sector_name
+        FROM equipment e
+        LEFT JOIN sectors s ON e.sector_id = s.id
+        WHERE e.id = ?
+      `, [equipmentId]),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout na consulta do equipamento')), 5000)
+      )
+    ])
 
     if (!equipmentRows || equipmentRows.length === 0) {
-      await connection.end()
       return NextResponse.json(
         { error: 'Equipamento não encontrado' },
         { status: 404 }
@@ -38,33 +43,37 @@ export async function POST(
 
     const equipment = equipmentRows[0]
 
-    // Buscar histórico de manutenções (simplificado)
+    // Buscar histórico de manutenções com timeout e limite menor
     let historyRows = []
     try {
-      const [scheduleRows] = await connection.execute(`
-        SELECT 
-          ms.id,
-          ms.scheduled_date as date,
-          COALESCE(ms.maintenance_type, 'Manutenção') as type,
-          COALESCE(ms.description, 'Sem descrição') as description,
-          ms.status,
-          COALESCE(u.name, 'Não atribuído') as technician_name,
-          COALESCE(ms.estimated_cost, 0) as cost,
-          'Agendamento' as source_type
-        FROM maintenance_schedules ms
-        LEFT JOIN users u ON ms.assigned_technician_id = u.id
-        WHERE ms.equipment_id = ?
-        ORDER BY ms.scheduled_date DESC
-        LIMIT 20
-      `, [equipmentId])
+      const [scheduleRows] = await Promise.race([
+        connection.execute(`
+          SELECT 
+            ms.id,
+            ms.scheduled_date as date,
+            COALESCE(ms.maintenance_type, 'Manutenção') as type,
+            COALESCE(ms.description, 'Sem descrição') as description,
+            ms.status,
+            COALESCE(u.name, 'Não atribuído') as technician_name,
+            COALESCE(ms.estimated_cost, 0) as cost
+          FROM maintenance_schedules ms
+          LEFT JOIN users u ON (ms.assigned_to = u.id OR ms.assigned_user_id = u.id)
+          WHERE ms.equipment_id = ?
+          ORDER BY ms.scheduled_date DESC
+          LIMIT 10
+        `, [equipmentId]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout na consulta do histórico')), 3000)
+        )
+      ])
       
       historyRows = scheduleRows || []
     } catch (error) {
-      console.log('Erro ao buscar histórico:', error)
+      console.log('Erro ao buscar histórico:', error.message)
       historyRows = []
     }
 
-    // Buscar estatísticas (simplificado)
+    // Buscar estatísticas com timeout
     let stats = {
       total_maintenances: 0,
       total_cost: 0,
@@ -73,17 +82,22 @@ export async function POST(
     }
     
     try {
-      const [statsRows] = await connection.execute(`
-        SELECT 
-          COUNT(*) as total_maintenances,
-          COALESCE(SUM(estimated_cost), 0) as total_cost,
-          ROUND(
-            (COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) * 100.0 / 
-             NULLIF(COUNT(*), 0)), 1
-          ) as success_rate
-        FROM maintenance_schedules 
-        WHERE equipment_id = ?
-      `, [equipmentId])
+      const [statsRows] = await Promise.race([
+        connection.execute(`
+          SELECT 
+            COUNT(*) as total_maintenances,
+            COALESCE(SUM(estimated_cost), 0) as total_cost,
+            ROUND(
+              (COUNT(CASE WHEN status = 'COMPLETED' THEN 1 END) * 100.0 / 
+               NULLIF(COUNT(*), 0)), 1
+            ) as success_rate
+          FROM maintenance_schedules 
+          WHERE equipment_id = ?
+        `, [equipmentId]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout na consulta de estatísticas')), 3000)
+        )
+      ])
       
       if (statsRows && statsRows.length > 0) {
         stats = {
@@ -94,10 +108,8 @@ export async function POST(
         }
       }
     } catch (error) {
-      console.log('Erro ao buscar estatísticas:', error)
+      console.log('Erro ao buscar estatísticas:', error.message)
     }
-
-    await connection.end()
 
     // Gerar PDF
     const doc = new PDFDocument({ margin: 50 })
@@ -153,9 +165,6 @@ export async function POST(
         if (record.description && record.description !== 'Sem descrição') {
           doc.text(`   Descrição: ${record.description}`)
         }
-        if (record.source_type) {
-          doc.text(`   Origem: ${record.source_type}`)
-        }
       })
     } else {
       doc.fontSize(12).text('Nenhuma manutenção registrada para este equipamento.')
@@ -182,5 +191,14 @@ export async function POST(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
+  } finally {
+    // Garantir que a conexão seja fechada
+    if (connection) {
+      try {
+        await connection.end()
+      } catch (err) {
+        console.log('Erro ao fechar conexão:', err)
+      }
+    }
   }
 }

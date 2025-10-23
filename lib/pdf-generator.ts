@@ -46,6 +46,12 @@ export class PDFGenerator {
   private template: PDFTemplate | null = null
   private logoImage: string | null = null
   private customSettings: any = null
+  private margins: { top: number; bottom: number; left: number; right: number } = {
+    top: 20,
+    bottom: 20,
+    left: 15,
+    right: 15
+  }
 
   constructor() {
     // Inicializar com margens padrão, serão sobrescritas pelas configurações personalizadas
@@ -59,12 +65,28 @@ export class PDFGenerator {
   // Aplicar margens personalizadas
   private applyCustomMargins(): void {
     if (this.customSettings) {
-      const marginTop = this.customSettings.pdf_margin_top || 20
-      const marginBottom = this.customSettings.pdf_margin_bottom || 20
-      const marginLeft = this.customSettings.pdf_margin_left || 15
-      const marginRight = this.customSettings.pdf_margin_right || 15
+      // Converter valores string para number se necessário
+      const marginTop = Number(this.customSettings.pdf_margin_top) || 20
+      const marginBottom = Number(this.customSettings.pdf_margin_bottom) || 20
+      const marginLeft = Number(this.customSettings.pdf_margin_left) || 15
+      const marginRight = Number(this.customSettings.pdf_margin_right) || 15
       
-      // Definir margens no PDF
+      console.log('📏 Aplicando margens personalizadas:', {
+        marginTop,
+        marginBottom,
+        marginLeft,
+        marginRight
+      })
+      
+      // Armazenar margens para uso posterior
+      this.margins = {
+        top: marginTop,
+        bottom: marginBottom,
+        left: marginLeft,
+        right: marginRight
+      }
+      
+      // Definir propriedades do PDF
       this.pdf.setProperties({
         title: 'Documento PDF',
         subject: 'Gerado pelo Sistema de Manutenção',
@@ -514,41 +536,39 @@ export class PDFGenerator {
       // Aplicar margens personalizadas
       this.applyCustomMargins()
 
-      const marginTop = this.customSettings?.pdf_margin_top || 15
-      const marginLeft = this.customSettings?.pdf_margin_left || 15
-      const marginRight = this.customSettings?.pdf_margin_right || 15
       const pageWidth = this.pdf.internal.pageSize.getWidth()
       
-      let yPosition = marginTop
+      // Usar margens configuradas
+      let yPosition = this.margins.top
 
       // CABEÇALHO PRINCIPAL COM NÚMERO DA OS EM DESTAQUE
       this.addProfessionalHeader(data, yPosition)
       yPosition += 35
 
       // SEÇÃO DADOS DA EMPRESA
-      yPosition = this.addCompanySection(data, yPosition, marginLeft, pageWidth - marginRight)
+      yPosition = this.addCompanySection(data, yPosition, this.margins.left, pageWidth - this.margins.right)
       yPosition += 10
 
       // SEÇÃO EQUIPAMENTO
-      yPosition = this.addEquipmentSection(data, yPosition, marginLeft, pageWidth - marginRight)
+      yPosition = this.addEquipmentSection(data, yPosition, this.margins.left, pageWidth - this.margins.right)
       yPosition += 10
 
       // SEÇÃO DETALHES DA ORDEM DE SERVIÇO
-      yPosition = this.addServiceOrderDetailsSection(data, yPosition, marginLeft, pageWidth - marginRight)
+      yPosition = this.addServiceOrderDetailsSection(data, yPosition, this.margins.left, pageWidth - this.margins.right)
       yPosition += 10
 
       // SEÇÃO DESCRIÇÃO DO SERVIÇO
-      yPosition = this.addDescriptionSection(data, yPosition, marginLeft, pageWidth - marginRight)
+      yPosition = this.addDescriptionSection(data, yPosition, this.margins.left, pageWidth - this.margins.right)
       yPosition += 10
 
       // SEÇÃO OBSERVAÇÕES
       if (data.observations && data.observations !== 'N/A') {
-        yPosition = this.addObservationsSection(data, yPosition, marginLeft, pageWidth - marginRight)
+        yPosition = this.addObservationsSection(data, yPosition, this.margins.left, pageWidth - this.margins.right)
         yPosition += 10
       }
 
       // CAMPOS DE ASSINATURA
-      this.addSignatureFields(yPosition, marginLeft, pageWidth - marginRight)
+      this.addSignatureFields(yPosition, this.margins.left, pageWidth - this.margins.right)
 
       // Adicionar rodapé personalizado ou padrão
       this.addFooter(1, 1)
@@ -564,19 +584,34 @@ export class PDFGenerator {
   // Adicionar cabeçalho profissional com número da OS em destaque
   private addProfessionalHeader(data: any, yPosition: number): void {
     const pageWidth = this.pdf.internal.pageSize.getWidth()
-    const marginLeft = 15
+    
+    // Usar configurações personalizadas ou padrões
+    const headerTitle = this.customSettings?.pdf_header_text || 'ORDEM DE SERVIÇO'
+    const primaryColor = this.customSettings?.pdf_primary_color || '#2980b9'
+    
+    // Converter cor hex para RGB
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 41, g: 128, b: 185 }
+    }
+    
+    const color = hexToRgb(primaryColor)
     
     // Título principal
     this.pdf.setFontSize(16)
     this.pdf.setFont('helvetica', 'bold')
-    this.pdf.setTextColor(25, 25, 112) // Azul escuro
-    this.pdf.text('ORDEM DE SERVIÇO', marginLeft, yPosition)
+    this.pdf.setTextColor(color.r, color.g, color.b)
+    this.pdf.text(headerTitle, this.margins.left, yPosition)
     
     // Subtítulo
     this.pdf.setFontSize(10)
     this.pdf.setFont('helvetica', 'normal')
     this.pdf.setTextColor(100, 100, 100)
-    this.pdf.text('Documento de Manutenção', marginLeft, yPosition + 6)
+    this.pdf.text('Documento de Manutenção', this.margins.left, yPosition + 6)
     
     // Número da OS em destaque (canto superior direito)
     const osNumber = data.order_number || 'N/A'
@@ -805,8 +840,20 @@ export class PDFGenerator {
     // Verificar se precisa de nova página
     if (yPosition > 220) {
       this.pdf.addPage()
-      yPosition = 30
+      yPosition = this.margins.top
     }
+    
+    // Usar configurações personalizadas para campos de assinatura
+    const signatureEnabled = this.customSettings?.pdf_signature_enabled !== 'false'
+    const field1Label = this.customSettings?.pdf_signature_field1_text || 'Responsável pela Execução'
+    const field2Label = this.customSettings?.pdf_signature_field2_text || 'Supervisor/Aprovador'
+    
+    if (!signatureEnabled) {
+      console.log('📝 Campos de assinatura desabilitados')
+      return
+    }
+    
+    console.log('📝 Adicionando campos de assinatura:', { field1Label, field2Label })
     
     // Linha separadora
     this.pdf.setLineWidth(0.5)
@@ -814,13 +861,15 @@ export class PDFGenerator {
     this.pdf.line(marginLeft, yPosition, pageWidth, yPosition)
     yPosition += 15
     
-    // Campo 1 - Responsável pela Execução
+    // Campo 1 - Configurável
     this.pdf.setFontSize(10)
     this.pdf.setFont('helvetica', 'bold')
-    this.pdf.text('Responsável pela Execução', marginLeft + (colWidth / 2) - 25, yPosition)
+    const field1X = marginLeft + (colWidth / 2) - (this.pdf.getTextWidth(field1Label) / 2)
+    this.pdf.text(field1Label, field1X, yPosition)
     
-    // Campo 2 - Supervisor/Aprovador
-    this.pdf.text('Supervisor/Aprovador', marginLeft + colWidth + (colWidth / 2) - 25, yPosition)
+    // Campo 2 - Configurável
+    const field2X = marginLeft + colWidth + (colWidth / 2) - (this.pdf.getTextWidth(field2Label) / 2)
+    this.pdf.text(field2Label, field2X, yPosition)
     
     yPosition += 10
     
@@ -834,8 +883,11 @@ export class PDFGenerator {
     // Texto "Assinatura e Data"
     this.pdf.setFontSize(8)
     this.pdf.setFont('helvetica', 'normal')
-    this.pdf.text('Assinatura e Data', marginLeft + (colWidth / 2) - 15, yPosition)
-    this.pdf.text('Assinatura e Data', marginLeft + colWidth + (colWidth / 2) - 15, yPosition)
+    const signatureText = 'Assinatura e Data'
+    const sig1X = marginLeft + (colWidth / 2) - (this.pdf.getTextWidth(signatureText) / 2)
+    const sig2X = marginLeft + colWidth + (colWidth / 2) - (this.pdf.getTextWidth(signatureText) / 2)
+    this.pdf.text(signatureText, sig1X, yPosition)
+    this.pdf.text(signatureText, sig2X, yPosition)
   }
 
   // Adicionar tabela de dados

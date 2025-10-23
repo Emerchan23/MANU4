@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '../../../lib/database.js'
+import { query } from '@/lib/database.js'
 // import rateLimiter from '../../../lib/rate-limiter.js' // Temporariamente desabilitado
 
 // Função de debug para testar queries diretamente
@@ -17,31 +17,10 @@ async function testQuery(sql: string, params: any[] = []) {
 }
 
 export async function GET(request: NextRequest) {
-  console.log('🔍 [MAINTENANCE-DASHBOARD] Iniciando requisição do dashboard')
+  console.log('🔍 [MAINTENANCE-DASHBOARD] ===== INICIANDO REQUISIÇÃO DO DASHBOARD =====')
   
   try {
-    // RETORNO SIMPLIFICADO PARA TESTE
-    console.log('🧪 [DEBUG] Retornando dados fixos para teste...')
-    
-    return NextResponse.json({
-      success: true,
-      data: {
-        metrics: {
-          pending: 8,
-          overdue: 6,
-          completedThisMonth: 7,
-          completionRate: 87
-        },
-        upcomingSchedules: [],
-        overdueSchedules: [],
-        monthlyStats: [],
-        costAnalysis: {
-          estimatedTotal: 0,
-          actualTotal: 0,
-          variance: 0
-        }
-      }
-    })
+    console.log('🔄 [MAINTENANCE-DASHBOARD] Carregando dados reais do banco...')
     
     // Get company_id from query parameters
     const { searchParams } = new URL(request.url)
@@ -49,13 +28,26 @@ export async function GET(request: NextRequest) {
     console.log('📋 [MAINTENANCE-DASHBOARD] Company ID:', company_id)
 
     // Check if maintenance_schedules table exists
-    console.log('🔍 [MAINTENANCE-DASHBOARD] Verificando se tabela maintenance_schedules existe...')
+    console.log('🔍 [MAINTENANCE-DASHBOARD] ===== VERIFICANDO TABELA MAINTENANCE_SCHEDULES =====')
     try {
-      const [tableExists] = await query(
-        "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'maintenance_schedules'"
-      )
+      const tableCheckQuery = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'maintenance_schedules'"
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Query de verificação de tabela:', tableCheckQuery)
       
-      if (tableExists[0].count === 0) {
+      const tableResult = await query(tableCheckQuery)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Resultado da verificação de tabela:', tableResult)
+      
+      if (!tableResult || !Array.isArray(tableResult) || tableResult.length === 0) {
+        console.error('❌ [MAINTENANCE-DASHBOARD] Resultado da verificação de tabela inválido:', tableResult)
+        return NextResponse.json({
+          success: false,
+          error: 'Erro ao verificar estrutura do banco de dados - resultado inválido'
+        }, { status: 500 })
+      }
+      
+      const tableExists = tableResult[0]
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Primeira linha do resultado:', tableExists)
+      
+      if (!tableExists || tableExists.count === 0) {
         console.log('❌ [MAINTENANCE-DASHBOARD] Tabela maintenance_schedules não existe')
         return NextResponse.json({
           success: false,
@@ -65,60 +57,76 @@ export async function GET(request: NextRequest) {
       console.log('✅ [MAINTENANCE-DASHBOARD] Tabela maintenance_schedules existe')
     } catch (tableError) {
       console.error('❌ [MAINTENANCE-DASHBOARD] Erro ao verificar tabelas:', tableError)
+      console.error('❌ [MAINTENANCE-DASHBOARD] Stack trace da verificação de tabela:', tableError.stack)
       return NextResponse.json({
         success: false,
-        error: 'Erro ao verificar estrutura do banco de dados'
+        error: 'Erro ao verificar estrutura do banco de dados',
+        details: tableError.message
       }, { status: 500 })
     }
 
-    // PROBLEMA IDENTIFICADO: Filtro de empresa está bloqueando todos os dados
-    // Vamos remover temporariamente o filtro de empresa para testar
+    // Aplicar filtro de empresa se fornecido
+    console.log('🔍 [MAINTENANCE-DASHBOARD] ===== CONFIGURANDO FILTROS =====')
     console.log('🔍 [MAINTENANCE-DASHBOARD] Company ID recebido:', company_id)
-    console.log('🔍 [MAINTENANCE-DASHBOARD] Tipo do Company ID:', typeof company_id)
     
-    // Desabilitar filtro de empresa temporariamente para debug
-    const companyFilter = '' // company_id ? 'AND ms.company_id = ?' : ''
-    const companyParams = [] // company_id ? [company_id] : []
-    console.log('🔍 [MAINTENANCE-DASHBOARD] Filtro de empresa DESABILITADO para debug:', { companyFilter, companyParams })
+    const companyFilter = company_id ? 'AND ms.company_id = ?' : ''
+    const companyParams = company_id ? [company_id] : []
+    console.log('🔍 [MAINTENANCE-DASHBOARD] Filtro de empresa:', { companyFilter, companyParams })
 
     // 1. Get pending schedules count
-    console.log('📊 [MAINTENANCE-DASHBOARD] Buscando agendamentos pendentes...')
+    console.log('📊 [MAINTENANCE-DASHBOARD] ===== BUSCANDO AGENDAMENTOS PENDENTES =====')
     let pendingCount = 0
     try {
       const pendingCountQuery = `
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms
-        WHERE ms.status IN ('AGENDADA', 'SCHEDULED')
+        WHERE ms.status IN ('AGENDADA', 'SCHEDULED') ${companyFilter}
       `
-      console.log('Query pendentes:', pendingCountQuery)
-      const pendingResult = await query(pendingCountQuery, [])
-      console.log('Resultado bruto pendentes:', pendingResult)
-      pendingCount = pendingResult[0]?.count || 0
-      console.log('✅ [MAINTENANCE-DASHBOARD] Agendamentos pendentes:', pendingCount)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Query pendentes:', pendingCountQuery)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Parâmetros pendentes:', companyParams)
+      
+      const pendingResult = await query(pendingCountQuery, companyParams)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Resultado bruto pendentes:', pendingResult)
+      
+      if (!pendingResult || !Array.isArray(pendingResult) || pendingResult.length === 0) {
+        console.error('❌ [MAINTENANCE-DASHBOARD] Resultado pendentes inválido:', pendingResult)
+        pendingCount = 0
+      } else {
+        pendingCount = pendingResult[0]?.count || 0
+        console.log('✅ [MAINTENANCE-DASHBOARD] Agendamentos pendentes:', pendingCount)
+      }
     } catch (error) {
       console.error('❌ [MAINTENANCE-DASHBOARD] Erro ao buscar pendentes:', error)
-      console.error('Stack trace:', error.stack)
+      console.error('❌ [MAINTENANCE-DASHBOARD] Stack trace pendentes:', error.stack)
       pendingCount = 0
     }
 
     // 2. Get overdue schedules count
-    console.log('📊 [MAINTENANCE-DASHBOARD] Buscando agendamentos atrasados...')
+    console.log('📊 [MAINTENANCE-DASHBOARD] ===== BUSCANDO AGENDAMENTOS ATRASADOS =====')
     let overdueCount = 0
     try {
       const overdueCountQuery = `
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms 
         WHERE ms.status IN ('AGENDADA', 'SCHEDULED') 
-        AND DATE(ms.scheduled_date) < CURDATE()
+        AND DATE(ms.scheduled_date) < CURDATE() ${companyFilter}
       `
-      console.log('Query atrasados:', overdueCountQuery)
-      const overdueResult = await query(overdueCountQuery, [])
-      console.log('Resultado bruto atrasados:', overdueResult)
-      overdueCount = overdueResult[0]?.count || 0
-      console.log('✅ [MAINTENANCE-DASHBOARD] Agendamentos atrasados:', overdueCount)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Query atrasados:', overdueCountQuery)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Parâmetros atrasados:', companyParams)
+      
+      const overdueResult = await query(overdueCountQuery, companyParams)
+      console.log('🔍 [MAINTENANCE-DASHBOARD] Resultado bruto atrasados:', overdueResult)
+      
+      if (!overdueResult || !Array.isArray(overdueResult) || overdueResult.length === 0) {
+        console.error('❌ [MAINTENANCE-DASHBOARD] Resultado atrasados inválido:', overdueResult)
+        overdueCount = 0
+      } else {
+        overdueCount = overdueResult[0]?.count || 0
+        console.log('✅ [MAINTENANCE-DASHBOARD] Agendamentos atrasados:', overdueCount)
+      }
     } catch (error) {
       console.error('❌ [MAINTENANCE-DASHBOARD] Erro ao buscar atrasados:', error)
-      console.error('Stack trace:', error.stack)
+      console.error('❌ [MAINTENANCE-DASHBOARD] Stack trace atrasados:', error.stack)
       overdueCount = 0
     }
 
@@ -142,9 +150,9 @@ export async function GET(request: NextRequest) {
         FROM maintenance_schedules ms 
         WHERE ms.status IN ('CONCLUIDA', 'COMPLETED') 
         AND DATE(ms.updated_at) >= DATE(?) 
-        AND DATE(ms.updated_at) <= DATE(?)
+        AND DATE(ms.updated_at) <= DATE(?) ${companyFilter}
       `
-      const completedParams = [startOfMonthStr, endOfMonthStr]
+      const completedParams = [startOfMonthStr, endOfMonthStr, ...companyParams]
       console.log('Query concluídos:', completedCountQuery, 'Params:', completedParams)
       const completedResult = await query(completedCountQuery, completedParams)
       console.log('Resultado bruto concluídos:', completedResult)
@@ -173,9 +181,9 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms 
         WHERE DATE(ms.scheduled_date) >= DATE(?) 
-        AND DATE(ms.scheduled_date) <= DATE(?)
+        AND DATE(ms.scheduled_date) <= DATE(?) ${companyFilter}
       `
-      const totalScheduledParams = [startOfMonthStr, endOfMonthStr]
+      const totalScheduledParams = [startOfMonthStr, endOfMonthStr, ...companyParams]
       const totalScheduledResult = await query(totalScheduledQuery, totalScheduledParams)
       const totalScheduledThisMonth = totalScheduledResult[0]?.count || 0
       completionRate = totalScheduledThisMonth > 0 

@@ -57,15 +57,15 @@ export function OperationalCharts({
   // Transform cost analysis for pie chart
   const costChartData = (costAnalysis || []).map(item => ({
     name: item.sector_name,
-    value: item.total_estimated_cost,
-    count: item.total_maintenances,
+    value: parseFloat(item.total_estimated_cost) || 0,
+    count: parseInt(item.total_maintenances) || 0,
   }));
 
   // Transform company performance for bar chart
   const performanceChartData = (companyPerformance || []).map(company => ({
     name: company.company_name,
-    'Taxa de Conclusão': company.completion_rate,
-    'Total de Agendamentos': company.total_schedules,
+    'Taxa de Conclusão': parseFloat(company.completion_rate) || 0,
+    'Total de Agendamentos': parseInt(company.total_schedules) || 0,
   }));
 
   return (
@@ -148,10 +148,24 @@ export function OperationalCharts({
             <BarChart data={performanceChartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
+              <YAxis 
+                domain={[0, 100]}
+                tickFormatter={(value) => `${value}%`}
+              />
+              <Tooltip 
+                formatter={(value: number, name: string) => {
+                  if (name === 'Taxa de Conclusão') {
+                    return [`${value.toFixed(1)}%`, name];
+                  }
+                  return [value, name];
+                }}
+              />
               <Legend />
-              <Bar dataKey="Taxa de Conclusão" fill="#10B981" />
+              <Bar 
+                dataKey="Taxa de Conclusão" 
+                fill="#10B981"
+                minPointSize={2}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -171,13 +185,19 @@ export function OperationalCharts({
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <div className="text-2xl font-bold text-green-600">
-              {(monthlyStats || []).reduce((acc, stat) => acc + stat.completed, 0)}
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              }).format((monthlyStats || []).reduce((acc, stat) => acc + (parseFloat(stat.completed_cost) || 0), 0))}
             </div>
             <div className="text-sm text-green-800">Total Concluído</div>
           </div>
           <div className="text-center p-4 bg-red-50 rounded-lg">
             <div className="text-2xl font-bold text-red-600">
-              {(monthlyStats || []).reduce((acc, stat) => acc + stat.overdue, 0)}
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              }).format((monthlyStats || []).reduce((acc, stat) => acc + (parseFloat(stat.overdue_cost) || 0), 0))}
             </div>
             <div className="text-sm text-red-800">Total em Atraso</div>
           </div>

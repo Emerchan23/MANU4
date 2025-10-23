@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
-import { generateServiceOrderNumber } from '@/lib/service-order-utils'
 
 // Database connection configuration
 const dbConfig = {
@@ -17,11 +16,14 @@ const dbConfig = {
 
 // POST - Converter agendamento em ordem de serviço
 export async function POST(request: NextRequest) {
+  console.log('🚀 ENDPOINT CONVERT-TO-SERVICE-ORDER CHAMADO!');
+  console.log('🔄 API /api/maintenance-schedules/convert-to-service-order - Iniciando conversão...');
+  console.log('📊 Request URL:', request.url);
+  console.log('📊 Request method:', request.method);
+  
   let connection;
   
   try {
-    console.log('🔄 API /api/maintenance-schedules/convert-to-service-order - Iniciando conversão...');
-    
     const body = await request.json()
     console.log('📊 Body recebido (raw):', body);
     console.log('📊 Tipo do body:', typeof body);
@@ -64,7 +66,6 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Buscando dados do agendamento...');
 
     // Buscar dados do agendamento
-    console.log('🔍 Buscando agendamento ID:', numericScheduleId);
     const [scheduleRows] = await connection.execute(`
       SELECT 
         ms.*,
@@ -73,11 +74,14 @@ export async function POST(request: NextRequest) {
         COALESCE(e.patrimony, e.patrimonio_number) as equipment_patrimonio,
         u.full_name as assigned_user_name,
         mp.name as maintenance_plan_name,
-        mp.maintenance_type as maintenance_type_name
+        mp.maintenance_type as maintenance_type_name,
+        c.id as company_id,
+        c.name as company_name
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN users u ON ms.assigned_user_id = u.id
       LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
+      LEFT JOIN companies c ON ms.company_id = c.id
       WHERE ms.id = ?
     `, [numericScheduleId]);
 
@@ -143,29 +147,77 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔍 Buscando empresa padrão...');
+    console.log('🔍 Determinando empresa prestadora...');
 
-    // Como a tabela equipment não tem company_id, vamos usar a empresa padrão
-    // mas garantir que ela seja buscada corretamente pelo nome
-    const [companyRows] = await connection.execute(`
-      SELECT id, name FROM companies WHERE id = 1 LIMIT 1
-    `);
+    // Usar a empresa do agendamento se disponível, senão usar empresa padrão
+    let companyId, companyName;
+    
+    if (schedule.company_id && schedule.company_name) {
+      // Usar empresa do agendamento
+      companyId = schedule.company_id;
+      companyName = schedule.company_name;
+      console.log('✅ Usando empresa do agendamento:', { companyId, companyName });
+    } else {
+      // Buscar empresa padrão como fallback
+      console.log('⚠️ Agendamento sem empresa definida, buscando empresa padrão...');
+      const [companyRows] = await connection.execute(`
+        SELECT id, name FROM companies WHERE id = 1 LIMIT 1
+      `);
 
-    console.log('📊 Resultado busca empresa:', { 
-      rowsLength: companyRows?.length, 
-      isArray: Array.isArray(companyRows),
-      companyName: companyRows?.[0]?.name,
-      companyId: companyRows?.[0]?.id
-    });
+      console.log('📊 Resultado busca empresa padrão:', { 
+        rowsLength: companyRows?.length, 
+        isArray: Array.isArray(companyRows),
+        companyName: companyRows?.[0]?.name,
+        companyId: companyRows?.[0]?.id
+      });
 
-    if (!companyRows || companyRows.length === 0) {
-      throw new Error('Empresa padrão não encontrada no banco de dados');
+      if (!companyRows || companyRows.length === 0) {
+        throw new Error('Empresa padrão não encontrada no banco de dados');
+      }
+
+      companyId = companyRows[0].id;
+      companyName = companyRows[0].name;
+      console.log('✅ Usando empresa padrão:', { companyId, companyName });
     }
 
-    const companyId = companyRows[0].id;
-    const companyName = companyRows[0].name;
-
     console.log('🔍 Gerando número da ordem de serviço...');
+
+    // Função para gerar número de ordem de serviço
+    const generateServiceOrderNumber = async (): Promise<string> => {
+      const currentYear = new Date().getFullYear()
+      
+      try {
+        // Busca o último número de ordem do ano atual
+        const [rows] = await connection.execute(`
+          SELECT order_number 
+          FROM service_orders 
+          WHERE YEAR(created_at) = ? 
+          ORDER BY id DESC 
+          LIMIT 1
+        `, [currentYear])
+        
+        let nextNumber = 1
+        
+        if (Array.isArray(rows) && rows.length > 0) {
+          const lastOrder = rows[0] as { order_number: string }
+          // Extrai o número sequencial do formato OS-XXX/YYYY
+          const match = lastOrder.order_number.match(/OS-(\d+)\/\d{4}/)
+          if (match) {
+            nextNumber = parseInt(match[1]) + 1
+          }
+        }
+        
+        // Formata o número com 3 dígitos (001, 002, etc.)
+        const formattedNumber = nextNumber.toString().padStart(3, '0')
+        
+        return `OS-${formattedNumber}/${currentYear}`
+      } catch (error) {
+        console.error('Erro ao gerar número da ordem de serviço:', error)
+        // Fallback: gera um número baseado no timestamp
+        const timestamp = Date.now().toString().slice(-3)
+        return `OS-${timestamp}/${currentYear}`
+      }
+    }
 
     // Gerar número único da ordem de serviço
     let orderNumber = await generateServiceOrderNumber();
@@ -490,38 +542,61 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    console.error('❌ Erro ao converter agendamento em ordem de serviço:', error)
-    console.error('❌ Stack trace:', error.stack)
-    console.error('❌ Mensagem do erro:', error.message)
-    console.error('❌ Código do erro SQL:', error.code)
-    console.error('❌ SQL State:', error.sqlState)
-    console.error('❌ SQL Message:', error.sqlMessage)
-    console.error('❌ Tipo do erro:', typeof error)
-    console.error('❌ Nome do erro:', error.name)
-    console.error('❌ Propriedades do erro:', Object.keys(error))
+    console.error('💥 ERRO CRÍTICO na API /api/maintenance-schedules/convert-to-service-order:', error);
+    console.error('Stack trace:', error.stack);
+    console.error('Tipo do erro:', typeof error);
+    console.error('Nome do erro:', error.name);
+    console.error('Mensagem do erro:', error.message);
     
+    // Rollback em caso de erro
     if (connection) {
       try {
         await connection.rollback();
+        console.log('🔄 Rollback executado com sucesso');
       } catch (rollbackError) {
         console.error('❌ Erro no rollback:', rollbackError);
       }
     }
-    
+
+    // Determinar tipo de erro e resposta apropriada
+    let errorMessage = 'Erro interno do servidor ao converter agendamento';
+    let statusCode = 500;
+
+    if (error.message.includes('não encontrada')) {
+      errorMessage = error.message;
+      statusCode = 404;
+    } else if (error.message.includes('já existe')) {
+      errorMessage = error.message;
+      statusCode = 400;
+    } else if (error.code === 'ER_NO_SUCH_TABLE') {
+      errorMessage = 'Erro de estrutura do banco de dados - tabela não encontrada';
+      console.error('❌ Tabela não encontrada:', error.sqlMessage);
+    } else if (error.code === 'ER_BAD_FIELD_ERROR') {
+      errorMessage = 'Erro de estrutura do banco de dados - campo não encontrado';
+      console.error('❌ Campo não encontrado:', error.sqlMessage);
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = 'Erro de conexão com o banco de dados';
+      console.error('❌ Conexão recusada pelo banco de dados');
+    }
+
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Erro interno do servidor ao converter agendamento',
+        error: errorMessage,
         details: error.message,
-        sqlError: error.sqlMessage || error.code,
-        errorType: error.name,
-        errorStack: error.stack
+        code: error.code || 'UNKNOWN_ERROR'
       },
-      { status: 500 }
+      { status: statusCode }
     )
   } finally {
+    // Fechar conexão
     if (connection) {
-      await connection.end();
+      try {
+        await connection.end();
+        console.log('🔌 Conexão com banco fechada');
+      } catch (closeError) {
+        console.error('⚠️ Erro ao fechar conexão:', closeError);
+      }
     }
   }
 }

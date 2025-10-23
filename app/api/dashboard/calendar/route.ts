@@ -29,12 +29,15 @@ export async function GET(request: NextRequest) {
         e.id as equipment_id,
         e.name as equipment_name,
         e.code as equipment_code,
-        s.name as sector_name
+        s.name as sector_name,
+        u.full_name as assigned_user_name,
+        ms.estimated_cost
       FROM maintenance_schedules ms
       LEFT JOIN equipment e ON ms.equipment_id = e.id
       LEFT JOIN sectors s ON e.sector_id = s.id
-      WHERE ms.scheduled_date >= CURDATE()
-      AND ms.scheduled_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      LEFT JOIN users u ON ms.assigned_user_id = u.id
+      WHERE ms.scheduled_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
+      AND ms.status IN ('AGENDADA', 'SCHEDULED', 'PENDENTE', 'PENDING')
       ORDER BY ms.scheduled_date ASC
       LIMIT 20
     `);
@@ -54,6 +57,9 @@ export async function GET(request: NextRequest) {
       priority: schedule.priority || 'MEDIA',
       status: schedule.status || 'SCHEDULED',
       sector: schedule.sector_name || 'N/A',
+      assignedUser: schedule.assigned_user_name || 'Não atribuído',
+      company: 'Hospital',
+      estimatedCost: schedule.estimated_cost || 0,
       description: schedule.description || '',
     }));
     

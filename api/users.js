@@ -138,6 +138,11 @@ router.put("/:id", async (req, res) => {
     const { id } = req.params
     const { name, email, role, allowedSectors, sector_id, permissions, isActive, is_active, password } = req.body
 
+    console.log('🔧 PUT /api/users/:id - Dados recebidos:', {
+      id,
+      body: req.body
+    });
+
     // Authentication removed - direct access allowed
 
     const updateFields = []
@@ -146,6 +151,18 @@ router.put("/:id", async (req, res) => {
     if (name) {
       updateFields.push("full_name = ?")
       updateValues.push(name)
+    }
+    
+    // Handle full_name from request body
+    if (req.body.full_name) {
+      updateFields.push("full_name = ?")
+      updateValues.push(req.body.full_name)
+    }
+    
+    // Handle username from request body
+    if (req.body.username) {
+      updateFields.push("username = ?")
+      updateValues.push(req.body.username)
     }
 
     if (email !== undefined) {
@@ -163,6 +180,12 @@ router.put("/:id", async (req, res) => {
       updateValues.push(isAdmin)
     }
     
+    // Handle is_admin from request body
+    if (req.body.is_admin !== undefined) {
+      updateFields.push("is_admin = ?")
+      updateValues.push(req.body.is_admin)
+    }
+    
     if (sector_id) {
       updateFields.push("sector_id = ?")
       updateValues.push(sector_id)
@@ -176,7 +199,7 @@ router.put("/:id", async (req, res) => {
 
     if (password) {
       const hashedPassword = await hashPassword(password)
-      updateFields.push("password = ?")
+      updateFields.push("password_hash = ?")
       updateValues.push(hashedPassword)
     }
 
@@ -186,6 +209,9 @@ router.put("/:id", async (req, res) => {
 
     updateFields.push("updated_at = CURRENT_TIMESTAMP")
     updateValues.push(id)
+
+    console.log('🔧 Query SQL:', `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`);
+    console.log('🔧 Valores:', updateValues);
 
     await query(
       `
@@ -197,7 +223,7 @@ router.put("/:id", async (req, res) => {
 
     // Get updated user data
     const updatedUsers = await query(
-      `SELECT u.id, u.nick, u.name, u.profile, u.sector_id, u.permissions, u.created_at,
+      `SELECT u.id, u.username, u.full_name as name, u.email, u.is_active, u.is_admin, u.created_at,
               s.name as sector_name
        FROM users u
        LEFT JOIN sectors s ON u.sector_id = s.id
@@ -207,22 +233,17 @@ router.put("/:id", async (req, res) => {
 
     if (updatedUsers.length > 0) {
       const user = updatedUsers[0]
-      const userPermissions = JSON.parse(user.permissions || "{}")
       
-      const frontendRole = {
-        'admin': 'ADMIN',
-        'gestor': 'GESTOR',
-        'usuario': 'USUARIO'
-      }[user.profile] || 'USUARIO'
+      const frontendRole = user.is_admin ? 'ADMIN' : 'USUARIO'
       
       const transformedUser = {
         id: user.id,
-        username: user.nick,
+        username: user.username,
         name: user.name,
-        email: null, // Email column doesn't exist
+        email: user.email,
         role: frontendRole,
-        allowedSectors: userPermissions.allowedSectors || [],
-        isActive: true, // Active column doesn't exist
+        allowedSectors: [],
+        isActive: Boolean(user.is_active),
         sector_name: user.sector_name,
         created_at: user.created_at
       }

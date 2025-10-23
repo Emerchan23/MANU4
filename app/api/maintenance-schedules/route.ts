@@ -8,10 +8,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'hospital_maintenance',
   charset: 'utf8mb4',
-  timezone: '+00:00',
-  connectTimeout: 5000,
-  acquireTimeout: 5000,
-  timeout: 5000
+  timezone: '+00:00'
 }
 
 // GET - List maintenance schedules with filters and joins
@@ -135,19 +132,13 @@ export async function GET(request: NextRequest) {
     const dataQuery = `
       SELECT 
         ms.*,
-        mp.name as maintenance_plan_name,
         e.name as equipment_name,
-        e.patrimonio as equipment_code,
-        e.patrimonio_number as equipment_patrimonio_number,
-        s.nome as sector_name,
-        sub.name as subsector_name,
-        u.full_name as user_name
+        u1.name as assigned_user_name,
+        u2.name as created_by_name
       FROM maintenance_schedules ms
-      LEFT JOIN maintenance_plans mp ON ms.maintenance_plan_id = mp.id
       LEFT JOIN equipment e ON ms.equipment_id = e.id
-      LEFT JOIN setores s ON e.sector_id = s.id
-      LEFT JOIN subsectors sub ON e.subsector_id = sub.id
-      LEFT JOIN users u ON ms.assigned_user_id = u.id
+      LEFT JOIN users u1 ON ms.assigned_to = u1.id
+      LEFT JOIN users u2 ON ms.created_by = u2.id
       ${whereClause}
       ORDER BY ms.scheduled_date DESC
       LIMIT ? OFFSET ?

@@ -62,26 +62,44 @@ export default function CalendarioAgendamentosPage() {
             const eventDate = new Date(schedule.scheduled_date)
             console.log('Original date:', schedule.scheduled_date, 'Parsed date:', eventDate) // Debug log
             
+            // Map maintenance_type from database values
+            const maintenanceTypeMap = {
+              'PREVENTIVA': 'preventiva',
+              'CORRETIVA': 'corretiva', 
+              'PREDITIVA': 'preditiva',
+              'EMERGENCIAL': 'corretiva'
+            }
+            
+            // Map priority from database values
+            const priorityMap = {
+              'CRITICA': 'alta',
+              'ALTA': 'alta',
+              'MEDIA': 'media',
+              'BAIXA': 'baixa'
+            }
+            
+            // Map status from database values
+            const statusMap = {
+              'AGENDADA': 'agendado',
+              'EM_ANDAMENTO': 'em_andamento',
+              'CONCLUIDA': 'concluido',
+              'CANCELADA': 'cancelado',
+              'CONVERTIDA': 'concluido'
+            }
+            
             return {
               id: schedule.id.toString(),
-              title: `${schedule.maintenance_type === 'preventiva' ? 'Manutenção Preventiva' : 
-                      schedule.maintenance_type === 'corretiva' ? 'Manutenção Corretiva' : 
-                      'Manutenção Preditiva'} - ${schedule.equipment_name}`,
+              title: `${schedule.maintenance_type === 'PREVENTIVA' ? 'Manutenção Preventiva' : 
+                      schedule.maintenance_type === 'CORRETIVA' ? 'Manutenção Corretiva' : 
+                      schedule.maintenance_type === 'PREDITIVA' ? 'Manutenção Preditiva' :
+                      'Manutenção Emergencial'} - ${schedule.equipment_name || 'Equipamento'}`,
               date: eventDate,
-              time: eventDate.toLocaleTimeString('pt-BR', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              }),
-              type: schedule.maintenance_type as 'preventiva' | 'corretiva' | 'preditiva',
-              // Fix priority mapping - API returns Portuguese values
-              priority: schedule.priority === 'critica' || schedule.priority === 'CRITICAL' ? 'alta' : 
-                       schedule.priority === 'alta' || schedule.priority === 'HIGH' ? 'alta' :
-                       schedule.priority === 'media' || schedule.priority === 'MEDIUM' ? 'media' : 'baixa',
+              time: schedule.scheduled_time || '08:00',
+              type: maintenanceTypeMap[schedule.maintenance_type] || 'preventiva',
+              priority: priorityMap[schedule.priority] || 'media',
               equipment: schedule.equipment_name || 'Equipamento não identificado',
-              responsible: schedule.user_name,
-              status: schedule.status === 'SCHEDULED' ? 'agendado' :
-                     schedule.status === 'IN_PROGRESS' ? 'em_andamento' :
-                     schedule.status === 'COMPLETED' ? 'concluido' : 'cancelado'
+              responsible: schedule.assigned_user_name || schedule.created_by_name,
+              status: statusMap[schedule.status] || 'agendado'
             }
           })
           

@@ -1,7 +1,6 @@
-// Script para testar as configurações de PDF no banco de dados
 const mysql = require('mysql2/promise');
 
-async function testPdfSettings() {
+async function testPDFSettings() {
   let connection;
   
   try {
@@ -14,79 +13,77 @@ async function testPdfSettings() {
       database: 'hospital_maintenance'
     });
     
-    console.log('✅ Conectado ao banco de dados');
+    console.log('✅ Conexão estabelecida');
     
-    // Verificar se existem configurações PDF
-    const [settings] = await connection.query(`
+    // Buscar configurações PDF
+    console.log('🔍 Buscando configurações PDF...');
+    const [settings] = await connection.execute(`
       SELECT setting_key, setting_value 
       FROM system_settings 
-      WHERE setting_key LIKE 'pdf_%' 
+      WHERE setting_key LIKE 'pdf_%'
       ORDER BY setting_key
     `);
     
-    console.log('\n📊 Configurações PDF encontradas:');
-    if (settings.length === 0) {
-      console.log('❌ Nenhuma configuração PDF encontrada no banco!');
+    console.log('📊 Configurações encontradas:', settings.length);
+    
+    // Processar configurações
+    const pdfSettings = {};
+    
+    settings.forEach((setting) => {
+      let value = setting.setting_value;
       
-      // Inserir configurações padrão
-      console.log('\n🔧 Inserindo configurações padrão...');
-      const defaultSettings = [
-        ['pdf_header_enabled', 'true'],
-        ['pdf_header_text', 'Sistema de Manutenção Hospitalar'],
-        ['pdf_footer_enabled', 'true'],
-        ['pdf_footer_text', 'Relatório gerado automaticamente pelo sistema'],
-        ['pdf_logo_enabled', 'true'],
-        ['pdf_company_name', 'Hospital'],
-        ['pdf_company_address', ''],
-        ['pdf_show_date', 'true'],
-        ['pdf_show_page_numbers', 'true'],
-        ['pdf_margin_top', '20'],
-        ['pdf_margin_bottom', '20'],
-        ['pdf_margin_left', '15'],
-        ['pdf_margin_right', '15']
-      ];
-      
-      for (const [key, value] of defaultSettings) {
-        await connection.query(
-          `INSERT INTO system_settings (setting_key, setting_value, description) 
-           VALUES (?, ?, ?) 
-           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-          [key, value, `Configuração PDF: ${key}`]
-        );
+      // Tentar fazer parse JSON para valores complexos
+      try {
+        value = JSON.parse(value);
+      } catch {
+        // Se não for JSON, manter como string
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
+        else if (!isNaN(Number(value)) && value !== '') value = Number(value);
       }
       
-      console.log('✅ Configurações padrão inseridas!');
-      
-      // Verificar novamente
-      const [newSettings] = await connection.query(`
-        SELECT setting_key, setting_value 
-        FROM system_settings 
-        WHERE setting_key LIKE 'pdf_%' 
-        ORDER BY setting_key
-      `);
-      
-      console.log('\n📊 Configurações PDF após inserção:');
-      newSettings.forEach(setting => {
-        console.log(`  ✅ ${setting.setting_key}: ${setting.setting_value}`);
-      });
+      pdfSettings[setting.setting_key] = value;
+      console.log(`  ${setting.setting_key}: ${JSON.stringify(value)}`);
+    });
+    
+    console.log('\n🎯 Configurações processadas:');
+    console.log('  Campos de assinatura habilitados:', pdfSettings.pdf_signature_enabled);
+    console.log('  Campo 1:', pdfSettings.pdf_signature_field1_text);
+    console.log('  Campo 2:', pdfSettings.pdf_signature_field2_text);
+    console.log('  Margens:', {
+      top: pdfSettings.pdf_margin_top,
+      bottom: pdfSettings.pdf_margin_bottom,
+      left: pdfSettings.pdf_margin_left,
+      right: pdfSettings.pdf_margin_right
+    });
+    console.log('  Cores:', {
+      primary: pdfSettings.pdf_primary_color,
+      secondary: pdfSettings.pdf_secondary_color,
+      text: pdfSettings.pdf_text_color
+    });
+    
+    // Verificar se os valores "88" estão sendo carregados
+    console.log('\n🔍 Verificando valores específicos:');
+    if (pdfSettings.pdf_signature_field1_text && pdfSettings.pdf_signature_field1_text.includes('88')) {
+      console.log('✅ Campo 1 contém "88":', pdfSettings.pdf_signature_field1_text);
     } else {
-      settings.forEach(setting => {
-        console.log(`  ✅ ${setting.setting_key}: ${setting.setting_value}`);
-      });
+      console.log('❌ Campo 1 NÃO contém "88":', pdfSettings.pdf_signature_field1_text);
     }
     
-    console.log('\n🎉 Teste concluído com sucesso!');
+    if (pdfSettings.pdf_signature_field2_text && pdfSettings.pdf_signature_field2_text.includes('88')) {
+      console.log('✅ Campo 2 contém "88":', pdfSettings.pdf_signature_field2_text);
+    } else {
+      console.log('❌ Campo 2 NÃO contém "88":', pdfSettings.pdf_signature_field2_text);
+    }
     
   } catch (error) {
-    console.error('❌ Erro:', error.message);
-    process.exit(1);
+    console.error('💥 Erro:', error.message);
   } finally {
     if (connection) {
       await connection.end();
-      console.log('\n🔌 Conexão com banco fechada');
+      console.log('🔌 Conexão fechada');
     }
   }
 }
 
-// Executar teste
-testPdfSettings().catch(console.error);
+testPDFSettings();

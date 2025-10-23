@@ -23,6 +23,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { UserPlusIcon, PencilIcon, TrashIcon, UserIcon, ShieldCheckIcon } from "@heroicons/react/24/outline"
 import type { User, UserRole } from "@/types/users"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const AVAILABLE_SECTORS = [
   { id: "1", name: "UTI" },
@@ -66,6 +76,9 @@ export function UserManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     email: "",
@@ -213,24 +226,45 @@ export function UserManagement() {
     }
   }
 
-  const handleDeleteUser = async (userId: string) => {
-    if (confirm("Tem certeza que deseja excluir este usuario?")) {
-      try {
-        const response = await fetch(`/api/users/${userId}`, {
-          method: 'DELETE',
-          credentials: 'include' // Include cookies for session-based auth
-        })
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user)
+    setDeleteModalOpen(true)
+  }
 
-        if (response.ok) {
-          setUsers((prev) => prev.filter((user) => user.id !== userId))
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return
+    
+    setIsDeleting(true)
+    
+    try {
+      const response = await fetch(`/api/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include' // Include cookies for session-based auth
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setUsers((prev) => prev.filter((user) => user.id !== userToDelete.id))
+        alert(result.message || 'Usuário excluído com sucesso!')
+      } else {
+        const error = await response.json()
+        
+        if (response.status === 409) {
+          // Erro de conflito - usuário possui vínculos
+          const errorMessage = `${error.message}\n\n${error.details}\n\n${error.suggestion}`
+          alert(errorMessage)
         } else {
-          const error = await response.json()
-          alert(`Erro ao excluir usuario: ${error.message}`)
+          // Outros erros
+          alert(`Erro ao excluir usuário: ${error.error || error.message || 'Erro desconhecido'}`)
         }
-      } catch (error) {
-        console.error('Erro na requisicao:', error)
-        alert('Erro de conexao. Tente novamente.')
       }
+    } catch (error) {
+      console.error('Erro na requisição:', error)
+      alert('Erro de conexão. Tente novamente.')
+    } finally {
+      setIsDeleting(false)
+      setDeleteModalOpen(false)
+      setUserToDelete(null)
     }
   }
 
@@ -524,8 +558,8 @@ export function UserManagement() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteUser(user)}
+                          className="text-red-600 hover:text-red-700"
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>
@@ -538,6 +572,28 @@ export function UserManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o usuário "{userToDelete?.name}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteUser} 
+              disabled={isDeleting} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

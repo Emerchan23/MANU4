@@ -33,6 +33,16 @@ import {
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 
 export default function AgendamentosListaPage() {
@@ -61,6 +71,9 @@ export default function AgendamentosListaPage() {
   const [filteredSchedules, setFilteredSchedules] = useState(schedules)
   const [convertingSchedules, setConvertingSchedules] = useState<string[]>([])
   const [approvingSchedules, setApprovingSchedules] = useState<string[]>([])
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [scheduleToDelete, setScheduleToDelete] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Verificar se há agendamentos com técnicos atribuídos para mostrar a coluna
   const hasAssignedTechnicians = schedules.some(schedule => schedule.assigned_technician_name)
@@ -204,18 +217,30 @@ export default function AgendamentosListaPage() {
     }
   }
 
-  const handleDeleteSchedule = async (scheduleId: string) => {
-    console.log('handleDeleteSchedule chamado com ID:', scheduleId)
-    if (confirm('Tem certeza que deseja excluir este agendamento?')) {
-      console.log('Confirmação aceita, chamando deleteSchedule...')
-      const success = await deleteSchedule(scheduleId)
-      console.log('Resultado da exclusão:', success)
-      if (success) {
-        console.log('Exclusão bem-sucedida, atualizando lista...')
-        fetchSchedules(filters)
-      } else {
-        console.error('Falha na exclusão')
-      }
+  const handleDeleteSchedule = (schedule: any) => {
+    setScheduleToDelete(schedule)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDeleteSchedule = async () => {
+    if (!scheduleToDelete) return
+    
+    console.log('handleDeleteSchedule chamado com ID:', scheduleToDelete.id)
+    setIsDeleting(true)
+    
+    console.log('Confirmação aceita, chamando deleteSchedule...')
+    const success = await deleteSchedule(scheduleToDelete.id)
+    console.log('Resultado da exclusão:', success)
+    
+    setIsDeleting(false)
+    setDeleteModalOpen(false)
+    setScheduleToDelete(null)
+    
+    if (success) {
+      console.log('Exclusão bem-sucedida, atualizando lista...')
+      fetchSchedules(filters)
+    } else {
+      console.error('Falha na exclusão')
     }
   }
 
@@ -871,7 +896,7 @@ export default function AgendamentosListaPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleDeleteSchedule(schedule.id)}
+                            onClick={() => handleDeleteSchedule(schedule)}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 flex items-center justify-center shrink-0"
                             title="Excluir Agendamento"
                           >
@@ -930,6 +955,29 @@ export default function AgendamentosListaPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o agendamento "{scheduleToDelete?.equipment_name}"?
+              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteSchedule} 
+              disabled={isDeleting} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </MainLayout>
   )

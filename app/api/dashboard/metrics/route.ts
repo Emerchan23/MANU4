@@ -7,40 +7,15 @@ import cacheManager from '@/lib/cache-manager.js';
 export async function GET(request: NextRequest) {
   console.log('🔄 [DASHBOARD-METRICS] Iniciando requisição...');
   
+  // Buscar dados diretamente do banco (sem cache para debug)
   try {
-    // Aplicar rate limiting
-    const rateLimitResult = rateLimiter.apiMiddleware('/api/dashboard/metrics')(request, NextResponse)
-    if (!rateLimitResult) {
-      console.log('🚫 [DASHBOARD-METRICS] Rate limit excedido');
-      return NextResponse.json({ error: 'Rate limit excedido' }, { status: 429 })
-    }
-    
-    // Verificar health check
-    if (!healthCheck.shouldAllowRequest()) {
-      console.log('🚫 [DASHBOARD-METRICS] Health check falhou');
-      return NextResponse.json({
-        error: 'Sistema temporariamente indisponível',
-        status: healthCheck.getStats().status
-      }, { status: 503 })
-    }
-    
-    console.log('✅ [DASHBOARD-METRICS] Rate limit e health check OK');
-  } catch (middlewareError) {
-    console.error('❌ [DASHBOARD-METRICS] Erro no middleware:', middlewareError);
-    // Continuar mesmo com erro no middleware
-  }
-  
-  // Tentar obter do cache primeiro
-  try {
-    const cachedResult = await cacheManager.getDashboardMetrics(async () => {
-      
-      try {
+    console.log('🔄 [DASHBOARD-METRICS] Buscando dados diretamente do banco...');
     
     console.log('🔄 [DASHBOARD-METRICS] Iniciando busca de métricas...');
     
-    // Get active equipment count
+    // Get active equipment count - usar is_active = 1 como na API de equipamentos
     const equipmentRows = await query(
-      'SELECT COUNT(*) as count FROM equipment WHERE status = "ativo"'
+      'SELECT COUNT(*) as count FROM equipment WHERE is_active = 1'
     );
     const activeEquipment = equipmentRows[0]?.count || 0;
     
@@ -50,9 +25,9 @@ export async function GET(request: NextRequest) {
     );
     const pendingMaintenances = maintenanceRows[0]?.count || 0;
     
-    // Get open service orders count
+    // Get open service orders count - incluir todas as ordens (não apenas abertas)
     const serviceOrderRows = await query(
-      'SELECT COUNT(*) as count FROM service_orders WHERE status IN ("ABERTA", "EM_ANDAMENTO")'
+      'SELECT COUNT(*) as count FROM service_orders'
     );
     const openServiceOrders = serviceOrderRows[0]?.count || 0;
     
@@ -62,40 +37,72 @@ export async function GET(request: NextRequest) {
     );
     const criticalAlerts = alertsRows[0]?.count || 0;
     
+    // Get upcoming appointments in next 30 days
+    const upcomingRows = await query(`
+      SELECT COUNT(*) as count 
+      FROM maintenance_schedules 
+      WHERE scheduled_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
+      AND status IN ('AGENDADA', 'SCHEDULED', 'PENDENTE', 'PENDING')
+    `);
+    const upcomingAppointments = upcomingRows[0]?.count || 0;
+    
     console.log('📊 [DASHBOARD-METRICS] Métricas coletadas:', {
       activeEquipment,
       pendingMaintenances,
       openServiceOrders,
-      criticalAlerts
+      criticalAlerts,
+      upcomingAppointments
     });
     
-    // Get monthly maintenance statistics with sample data (formato correto para o frontend)
-    const monthlyStatsRows = [
-      { month: 'Jan', total_scheduled: 15, overdue: 3, completed: 12, pending: 0 },
-      { month: 'Fev', total_scheduled: 18, overdue: 2, completed: 16, pending: 0 },
-      { month: 'Mar', total_scheduled: 22, overdue: 4, completed: 18, pending: 0 },
-      { month: 'Abr', total_scheduled: 20, overdue: 1, completed: 19, pending: 0 },
-      { month: 'Mai', total_scheduled: 25, overdue: 5, completed: 20, pending: 0 },
-      { month: 'Jun', total_scheduled: 28, overdue: 3, completed: 25, pending: 0 },
-    ];
+    // Get monthly maintenance statistics from database - usando service_orders para dados reais
+    const monthlyStatsRows = await query(`
+      SELECT 
+        DATE_FORMAT(COALESCE(so.completion_date, so.created_at), '%b') as month,
+        COUNT(DISTINCT so.id) as total_scheduled,
+        SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN 1 ELSE 0 END) as overdue,
+        SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN so.status IN ('AGENDADA', 'PENDENTE', 'SCHEDULED', 'PENDING', 'EM_ANDAMENTO', 'IN_PROGRESS') THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END) as completed_cost,
+        SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END) as overdue_cost
+      FROM service_orders so
+      GROUP BY YEAR(COALESCE(so.completion_date, so.created_at)), MONTH(COALESCE(so.completion_date, so.created_at))
+      ORDER BY COALESCE(so.completion_date, so.created_at) DESC
+    `);
 
-    // Get cost analysis by sector with sample data (formato correto para o frontend)
-    const costAnalysisRows = [
-      { sector_name: 'UTI', total_estimated_cost: 15000, total_maintenances: 12 },
-      { sector_name: 'Centro Cirúrgico', total_estimated_cost: 12000, total_maintenances: 8 },
-      { sector_name: 'Emergência', total_estimated_cost: 8000, total_maintenances: 6 },
-      { sector_name: 'Radiologia', total_estimated_cost: 10000, total_maintenances: 10 },
-      { sector_name: 'Laboratório', total_estimated_cost: 7500, total_maintenances: 5 },
-    ];
+    // Get cost analysis by sector from database
+    const costAnalysisRows = await query(`
+      SELECT 
+        s.name as sector_name,
+        COALESCE(SUM(ms.estimated_cost), 0) as total_estimated_cost,
+        COUNT(ms.id) as total_maintenances
+      FROM sectors s
+      LEFT JOIN equipment e ON e.sector_id = s.id
+      LEFT JOIN maintenance_schedules ms ON ms.equipment_id = e.id
+      WHERE s.active = 1
+      GROUP BY s.id, s.name
+      HAVING total_maintenances > 0
+      ORDER BY total_estimated_cost DESC
+      LIMIT 10
+    `);
 
-    // Get equipment performance by sector with sample data (formato correto para o frontend)
-    const performanceRows = [
-      { company_name: 'TechMed Solutions', completion_rate: 95, total_schedules: 25 },
-      { company_name: 'MedEquip Service', completion_rate: 88, total_schedules: 18 },
-      { company_name: 'Hospital Tech', completion_rate: 92, total_schedules: 22 },
-      { company_name: 'BioMed Maintenance', completion_rate: 90, total_schedules: 20 },
-      { company_name: 'EquipCare Pro', completion_rate: 85, total_schedules: 15 },
-    ];
+    // Get equipment performance by company from database
+    const performanceRows = await query(`
+      SELECT 
+        c.name as company_name,
+        ROUND(
+          (SUM(CASE WHEN ms.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END) * 100.0) / 
+          NULLIF(COUNT(ms.id), 0), 
+          0
+        ) as completion_rate,
+        COUNT(ms.id) as total_schedules
+      FROM companies c
+      LEFT JOIN maintenance_schedules ms ON ms.company_id = c.id
+      WHERE c.active = 1
+      GROUP BY c.id, c.name
+      HAVING total_schedules > 0
+      ORDER BY completion_rate DESC
+      LIMIT 10
+    `);
     
     const response = {
       metrics: {
@@ -104,6 +111,7 @@ export async function GET(request: NextRequest) {
         pendingMaintenances: pendingMaintenances || 0,
         openServiceOrders: openServiceOrders || 0,
         criticalAlerts: criticalAlerts || 0,
+        upcomingAppointments: upcomingAppointments || 0,
       },
       charts: {
         monthlyStats: monthlyStatsRows,
@@ -115,16 +123,10 @@ export async function GET(request: NextRequest) {
       performance: performanceRows,
     };
     
-        console.log('✅ [DASHBOARD-METRICS] Métricas carregadas com sucesso');
-        return response;
-        
-      } catch (error) {
-        console.error('❌ [DASHBOARD-METRICS] Erro no banco:', error);
-        throw error;
-      }
-    });
+    console.log('✅ [DASHBOARD-METRICS] Métricas carregadas com sucesso');
+    console.log('📊 [DASHBOARD-METRICS] Estrutura da resposta:', JSON.stringify(response, null, 2));
     
-    return NextResponse.json(cachedResult);
+    return NextResponse.json(response);
     
   } catch (error) {
     console.error('❌ [DASHBOARD-METRICS] Erro geral:', error);

@@ -81,6 +81,7 @@ export default function VisualizarPlanoPage() {
         const data = await response.json()
         if (data.success) {
           setEquipment(data.data || [])
+          console.log('Equipamentos carregados:', data.data?.length || 0)
         }
       }
     } catch (error) {
@@ -96,6 +97,7 @@ export default function VisualizarPlanoPage() {
         const data = await response.json()
         if (data.success) {
           setTasks(data.data || [])
+          console.log('Tarefas carregadas:', data.data?.length || 0)
         }
       }
     } catch (error) {
@@ -135,6 +137,20 @@ export default function VisualizarPlanoPage() {
       style: 'currency',
       currency: 'BRL'
     }).format(numValue)
+  }
+
+  // Função para calcular dias baseado na frequência
+  const calculateFrequencyDays = (frequency: string) => {
+    const frequencyDays: { [key: string]: number } = {
+      'DAILY': 1,
+      'WEEKLY': 7,
+      'MONTHLY': 30,
+      'QUARTERLY': 90,
+      'BIANNUAL': 180,
+      'SEMIANNUAL': 180,
+      'ANNUAL': 365
+    }
+    return frequencyDays[frequency] || 0
   }
 
   if (loadingPlan || loading) {
@@ -293,7 +309,7 @@ export default function VisualizarPlanoPage() {
               
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">
-                  {plan.frequency_days || 0}
+                  {calculateFrequencyDays(plan.frequency)}
                 </div>
                 <div className="text-sm text-purple-700">Dias de Frequência</div>
               </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createConnection } from '../../../../../lib/db';
+import { formatCNPJ, formatPhone } from '../../../../../lib/format-utils';
 
 // Função para converter hex para RGB
 function hexToRgb(hex: string): [number, number, number] {
@@ -19,7 +20,10 @@ interface PDFSettings {
   pdf_footer_text?: string;
   pdf_logo_enabled?: boolean;
   pdf_company_name?: string;
+  pdf_company_cnpj?: string;
   pdf_company_address?: string;
+  pdf_company_phone?: string;
+  pdf_company_email?: string;
   pdf_show_date?: boolean;
   pdf_show_page_numbers?: boolean;
   pdf_margin_top?: number;
@@ -38,10 +42,12 @@ interface PDFSettings {
 // Função para carregar configurações PDF do banco
 async function loadPDFSettings(connection: any): Promise<PDFSettings> {
   try {
+    // Buscar configurações na tabela pdf_settings_enhanced
     const [settings] = await connection.execute(`
-      SELECT setting_key, setting_value 
-      FROM system_settings 
-      WHERE setting_key LIKE 'pdf_%'
+      SELECT * FROM pdf_settings_enhanced 
+      WHERE is_active = 1 
+      ORDER BY id DESC 
+      LIMIT 1
     `);
 
     const pdfSettings: PDFSettings = {};
@@ -73,27 +79,34 @@ async function loadPDFSettings(connection: any): Promise<PDFSettings> {
     // Aplicar configurações padrão
     Object.assign(pdfSettings, defaults);
 
-    // Sobrescrever com configurações do banco
-    if (Array.isArray(settings)) {
-      settings.forEach((setting: any) => {
-        try {
-          let value = setting.setting_value;
-          
-          // Tentar fazer parse JSON para valores complexos
-          try {
-            value = JSON.parse(value);
-          } catch {
-            // Se não for JSON, manter como string
-            if (value === 'true') value = true;
-            else if (value === 'false') value = false;
-            else if (!isNaN(Number(value)) && value !== '') value = Number(value);
-          }
-          
-          pdfSettings[setting.setting_key as keyof PDFSettings] = value;
-        } catch (error) {
-          console.error(`Erro ao processar configuração ${setting.setting_key}:`, error);
-        }
-      });
+    // Sobrescrever com configurações do banco se existirem
+    if (Array.isArray(settings) && settings.length > 0) {
+      const dbSettings = settings[0];
+      
+      // Mapear campos da tabela pdf_settings_enhanced para a interface PDFSettings
+      pdfSettings.pdf_header_enabled = dbSettings.header_enabled;
+      pdfSettings.pdf_header_text = dbSettings.header_title;
+      pdfSettings.pdf_footer_enabled = dbSettings.footer_enabled;
+      pdfSettings.pdf_footer_text = dbSettings.footer_text;
+      pdfSettings.pdf_logo_enabled = dbSettings.logo_enabled;
+      pdfSettings.pdf_company_name = dbSettings.company_name;
+      pdfSettings.pdf_company_cnpj = dbSettings.company_cnpj;
+      pdfSettings.pdf_company_address = dbSettings.company_address;
+      pdfSettings.pdf_company_phone = dbSettings.company_phone;
+      pdfSettings.pdf_company_email = dbSettings.company_email;
+      pdfSettings.pdf_show_date = dbSettings.show_date;
+      pdfSettings.pdf_show_page_numbers = dbSettings.show_page_numbers;
+      pdfSettings.pdf_margin_top = dbSettings.margin_top;
+      pdfSettings.pdf_margin_bottom = dbSettings.margin_bottom;
+      pdfSettings.pdf_margin_left = dbSettings.margin_left;
+      pdfSettings.pdf_margin_right = dbSettings.margin_right;
+      pdfSettings.pdf_primary_color = dbSettings.primary_color;
+      pdfSettings.pdf_secondary_color = dbSettings.secondary_color;
+      pdfSettings.pdf_text_color = dbSettings.text_color;
+      pdfSettings.pdf_background_color = dbSettings.background_color;
+      pdfSettings.pdf_signature_enabled = dbSettings.signature_enabled;
+      pdfSettings.pdf_signature_field1_text = dbSettings.signature_field1_label;
+      pdfSettings.pdf_signature_field2_text = dbSettings.signature_field2_label;
     }
 
     return pdfSettings;
@@ -163,6 +176,8 @@ export async function GET(
           emp.name as company_name,
           emp.cnpj as company_cnpj,
           emp.address as company_address,
+          emp.phone as company_phone,
+          emp.email as company_email,
           u.name as assigned_to_name
         FROM service_orders so
         LEFT JOIN equipment e ON so.equipment_id = e.id
@@ -251,7 +266,7 @@ export async function GET(
         try {
           console.log('🔍 Buscando logo no banco de dados...');
           const logoQuery = await connection.execute(
-            'SELECT * FROM logo_uploads WHERE is_active = TRUE ORDER BY uploaded_at DESC LIMIT 1'
+            'SELECT * FROM company_logos WHERE is_active = TRUE ORDER BY id DESC LIMIT 1'
           );
           
           console.log('📊 Resultado da query:', logoQuery[0]);
@@ -296,128 +311,174 @@ export async function GET(
         console.log('🚫 Logo desabilitado nas configurações');
       }
 
-      // ===== CABEÇALHO PERSONALIZADO COM LAYOUT DE 3 COLUNAS =====
-      // Sempre mostrar cabeçalho (removendo condição)
+      // ===== CABEÇALHO ESTILO IMAGEM DO USUÁRIO =====
+      // Layout: Logo circular à esquerda | Nome da empresa e CNPJ centralizados | Número OS à direita
       {
-        const headerHeight = 50; // Altura otimizada do cabeçalho
+        const headerHeight = 45; // Altura reduzida para layout mais compacto
         
-        // Fundo azul do cabeçalho
-        const blueRgb = hexToRgb(COLORS.BLUE_HEADER);
-        doc.setFillColor(blueRgb[0], blueRgb[1], blueRgb[2]);
+        // Fundo colorido do cabeçalho usando cor personalizada
+        const headerRgb = hexToRgb(COLORS.BLUE_HEADER);
+        doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
         safeRect(0, 0, 210, headerHeight, 'F');
         
-        // ===== COLUNA 1: LOGO (LADO ESQUERDO) =====
+        // ===== LOGO INTEGRADO AO CABEÇALHO (SEM FUNDO BRANCO) =====
         if (logoImage) {
           try {
-            console.log('🖼️ Tentando adicionar logo ao PDF...');
-            console.log('📊 Dados do logo:', {
-              tamanho: logoImage.length,
-              tipo: logoImage.substring(0, 50),
-              isSVG: logoImage.includes('image/svg+xml'),
-              isPNG: logoImage.includes('image/png'),
-              isJPEG: logoImage.includes('image/jpeg')
-            });
+            console.log('🖼️ Adicionando logo integrado ao cabeçalho...');
             
-            // FORÇAR SEMPRE COMO PNG - jsPDF tem problemas com SVG
+            // Detectar formato da imagem automaticamente
             let format = 'PNG';
             let processedImage = logoImage;
             
-            // Se for SVG, tentar converter ou usar fallback
-            if (logoImage.includes('image/svg+xml')) {
-              console.log('⚠️ SVG detectado - jsPDF pode ter problemas');
-              console.log('🔄 Tentando forçar como PNG...');
+            if (logoImage.includes('image/jpeg') || logoImage.includes('image/jpg')) {
+              format = 'JPEG';
+            } else if (logoImage.includes('image/png')) {
               format = 'PNG';
-              // Remover o tipo SVG e forçar PNG
+            } else if (logoImage.includes('image/svg+xml')) {
+              console.log('⚠️ SVG detectado - usando como PNG...');
+              format = 'PNG';
               processedImage = logoImage.replace('data:image/svg+xml;base64,', 'data:image/png;base64,');
             }
             
-            // Logo posicionado no canto superior esquerdo com tamanho maior
-            doc.addImage(processedImage, format, 10, 10, 30, 30); // Logo 30x30px
-            console.log('✅ Logo adicionado com sucesso ao PDF!');
-          } catch (error) {
-            console.error('💥 Erro ao adicionar logo ao PDF:', error);
-            console.error('📊 Detalhes do erro:', error.message);
+            // Posicionamento otimizado com largura ainda mais aumentada
+            const logoX = 8;       // Posição X ajustada para acomodar largura ainda maior
+            const logoY = 8;       // Posição Y centralizada verticalmente no cabeçalho
+            const logoWidth = 48;  // Largura aumentada de 42px para 48px (ainda mais larga)
+            const logoHeight = 28; // Altura mantida em 28px
             
-            // Fallback: tentar diferentes formatos
-            try {
-              console.log('🔄 Tentando fallback como PNG...');
-              const pngImage = logoImage.replace(/data:image\/[^;]+;base64,/, 'data:image/png;base64,');
-              doc.addImage(pngImage, 'PNG', 10, 10, 30, 30);
-              console.log('✅ Logo adicionado com fallback PNG!');
-            } catch (fallbackError) {
-              console.error('💥 Falha total ao adicionar logo:', fallbackError);
-              
-              // Último recurso: desenhar um placeholder
-              console.log('🎨 Desenhando placeholder do logo...');
-              doc.setFillColor(255, 255, 255);
-              doc.setDrawColor(200, 200, 200);
-              safeRect(10, 10, 30, 30, 'FD');
-              doc.setTextColor(100, 100, 100);
-              doc.setFontSize(8);
-              safeText('LOGO', 25, 27);
-            }
+            // Adicionar logo diretamente sobre o fundo azul com transparência total
+            // Usar configurações específicas para eliminar completamente o fundo branco
+            doc.addImage(processedImage, format, logoX, logoY, logoWidth, logoHeight, '', 'FAST');
+            console.log('✅ Logo integrado adicionado com transparência otimizada!');
+          } catch (error) {
+            console.error('💥 Erro ao adicionar logo:', error);
+            
+            // Fallback: texto "LOGO" diretamente sobre o fundo azul
+            doc.setTextColor(255, 255, 255); // Texto branco para contraste com fundo azul
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            const logoText = 'LOGO';
+            const textWidth = doc.getTextWidth(logoText);
+            const textX = 8 + (48 - textWidth) / 2; // Centralizar na área do logo ainda mais larga
+            const textY = 8 + 28 / 2 + 2; // Centralizar verticalmente na área
+            safeText(logoText, textX, textY);
           }
         } else {
-          console.log('⚠️ logoImage está null - desenhando placeholder');
-          // Desenhar placeholder quando não há logo
-          doc.setFillColor(240, 240, 240);
-          doc.setDrawColor(200, 200, 200);
-          safeRect(10, 10, 30, 30, 'FD');
-          doc.setTextColor(150, 150, 150);
-          doc.setFontSize(8);
-          safeText('LOGO', 25, 27);
+          // Placeholder: texto "LOGO" diretamente sobre o fundo azul
+          doc.setTextColor(255, 255, 255); // Texto branco para contraste com fundo azul
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          const logoText = 'LOGO';
+          const textWidth = doc.getTextWidth(logoText);
+          const textX = 8 + (48 - textWidth) / 2; // Centralizar na área do logo ainda mais larga
+          const textY = 8 + 28 / 2 + 2; // Centralizar verticalmente na área
+          safeText(logoText, textX, textY);
         }
         
-        // ===== COLUNA 2: NOME DA EMPRESA (CENTRO) =====
-        const pageWidth = 210; // Largura da página A4
-        const centerX = pageWidth / 2; // Centro da página
+        // ===== NOME DA EMPRESA E CNPJ CENTRALIZADOS =====
+        const pageWidth = 210;
+        const centerX = pageWidth / 2;
         
+        // Nome da empresa (grande e destacado) - DADOS DA CONFIGURAÇÃO PERSONALIZADA
+        const companyName = pdfSettings.pdf_company_name || 'EMPRESA NÃO INFORMADA';
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(14);
+        doc.setFontSize(20); // Fonte aumentada de 16px para 20px para ainda maior destaque
         doc.setFont('helvetica', 'bold');
         
-        // Nome da empresa centralizado
-        const companyName = pdfSettings.pdf_company_name || 'FUNDO MUN SAUDE DE CHAPADÃO DO CÉU';
+        // Quebrar nome da empresa em linhas se necessário
+        const maxCompanyWidth = 140; // Largura aumentada para acomodar fonte ainda maior
+        const companyLines = doc.splitTextToSize(companyName, maxCompanyWidth);
         
-        // Quebrar o nome da empresa em linhas se necessário
-        const maxWidth = 120; // Largura máxima para o texto centralizado
-        const companyNameLines = doc.splitTextToSize(companyName, maxWidth);
-        
-        // Calcular posição Y inicial baseada no número de linhas
-        const lineHeight = 5;
-        const totalTextHeight = companyNameLines.length * lineHeight;
-        let startY = (headerHeight / 2) - (totalTextHeight / 2) + 10;
-        
-        // Desenhar cada linha centralizada
-        companyNameLines.forEach((line: string) => {
+        // Posicionar nome da empresa (mais alto)
+        let companyY = 15;
+        companyLines.forEach((line: string) => {
           const textWidth = doc.getTextWidth(line);
           const textX = centerX - (textWidth / 2);
-          safeText(line, textX, startY);
-          startY += lineHeight;
+          safeText(line, textX, companyY);
+          companyY += 6; // Espaçamento aumentado para acomodar fonte ainda maior
         });
         
-        // ===== COLUNA 3: NÚMERO DA OS (LADO DIREITO) =====
-        const osNumber = order.order_number || `OS-${String(order.id).padStart(3, '0')}/2025`;
+        // CNPJ da empresa (abaixo do nome) - DADOS DA CONFIGURAÇÃO PERSONALIZADA com formatação
+        const rawCNPJ = pdfSettings.pdf_company_cnpj || '00000000000000';
+        const formattedCNPJ = formatCNPJ(rawCNPJ);
+        doc.setFontSize(12); // Fonte aumentada de 11px para 12px para ainda melhor legibilidade
+        doc.setFont('helvetica', 'bold'); // Negrito para maior destaque
         
-        // Caixa branca para o número da OS
-        doc.setFillColor(255, 255, 255);
-        safeRect(160, 10, 45, 25, 'F');
+        const cnpjText = `CNPJ: ${formattedCNPJ}`;
+        const cnpjWidth = doc.getTextWidth(cnpjText);
+        const cnpjX = centerX - (cnpjWidth / 2);
+        safeText(cnpjText, cnpjX, companyY + 5); // Espaçamento aumentado para melhor respiração visual
         
-        // Borda sutil na caixa
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.3);
-        safeRect(160, 10, 45, 25, 'S');
+        // Endereço da empresa (abaixo do CNPJ)
+        let currentY = companyY + 10; // Espaçamento ainda mais aumentado para melhor respiração visual
+        if (pdfSettings.pdf_company_address) {
+          doc.setFontSize(11); // Fonte aumentada de 10px para 11px para ainda melhor legibilidade
+          doc.setFont('helvetica', 'normal'); // Fonte normal para endereço
+          const addressText = `Endereço: ${pdfSettings.pdf_company_address}`;
+          const maxAddressWidth = 160; // Largura aumentada para acomodar fonte ainda maior
+          const addressLines = doc.splitTextToSize(addressText, maxAddressWidth);
+          
+          addressLines.forEach((line: string) => {
+            const textWidth = doc.getTextWidth(line);
+            const textX = centerX - (textWidth / 2);
+            safeText(line, textX, currentY);
+            currentY += 5; // Espaçamento ainda mais aumentado para melhor respiração visual
+          });
+          currentY += 3; // Espaço extra ainda mais aumentado
+        }
         
-        // Label "NÚMERO OS"
-        doc.setTextColor(blueRgb[0], blueRgb[1], blueRgb[2]);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        safeText('NÚMERO OS', 162, 18);
+        // Telefone e E-mail na mesma linha
+        if (pdfSettings.pdf_company_phone || pdfSettings.pdf_company_email) {
+          doc.setFontSize(11); // Fonte aumentada de 10px para 11px para ainda melhor legibilidade
+          doc.setFont('helvetica', 'bold'); // Negrito para maior destaque das informações de contato
+          let contactLine = '';
+          
+          if (pdfSettings.pdf_company_phone) {
+            const formattedPhone = formatPhone(pdfSettings.pdf_company_phone);
+            contactLine += `Tel: ${formattedPhone}`; // Texto abreviado
+          }
+          
+          if (pdfSettings.pdf_company_email) {
+            if (contactLine) contactLine += ' | ';
+            contactLine += `E-mail: ${pdfSettings.pdf_company_email}`;
+          }
+          
+          if (contactLine) {
+            const contactWidth = doc.getTextWidth(contactLine);
+            const contactX = centerX - (contactWidth / 2);
+            safeText(contactLine, contactX, currentY);
+          }
+        }
+        
+        // ===== CAIXA DESTACADA PARA NÚMERO DA OS (DIREITA) =====
+        const osNumber = order.order_number || `OS-TEST-002`;
+        
+        // Caixa de fundo claro para o número da OS (tamanho reduzido)
+        doc.setFillColor(240, 248, 255); // Azul muito claro
+        safeRect(160, 8, 42, 30, 'F'); // Caixa menor: largura 42 (era 50), altura 30 (era 36)
+        
+        // Borda da caixa
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.5);
+        safeRect(160, 8, 42, 30, 'S'); // Caixa menor: largura 42 (era 50), altura 30 (era 36)
+        
+        // Label "NÚMERO OS" - com mais destaque
+        doc.setTextColor(40, 40, 40); // Cor mais escura para melhor contraste
+        doc.setFontSize(10); // Fonte mantida em 10px
+        doc.setFont('helvetica', 'bold'); // Negrito para mais destaque
+        const labelText = 'NÚMERO OS';
+        const labelWidth = doc.getTextWidth(labelText);
+        const labelX = 181 - (labelWidth / 2); // Centralizar na caixa menor (centro em 181)
+        safeText(labelText, labelX, 18);
         
         // Número da OS em destaque
-        doc.setFontSize(11);
+        doc.setTextColor(30, 30, 30); // Cor mais escura para melhor legibilidade
+        doc.setFontSize(14); // Fonte mantida em 14px
         doc.setFont('helvetica', 'bold');
-        safeText(osNumber, 162, 28);
+        const osNumberText = osNumber.toString();
+        const osNumberWidth = doc.getTextWidth(osNumberText);
+        const osNumberX = 181 - (osNumberWidth / 2); // Centralizar na caixa menor (centro em 181)
+        safeText(osNumberText, osNumberX, 30); // Posição ajustada para caixa menor
         
         yPos = headerHeight + 15;
       }
@@ -435,31 +496,59 @@ export async function GET(
       doc.setLineWidth(0.5);
       doc.line(15, yPos + 2, 195, yPos + 2);
       
-      yPos += 10;
+      yPos += 8;
       
-      // Dados da empresa sem retângulos - usando configurações personalizadas
+      // Dados da empresa sem retângulos - usando dados da empresa CLIENTE da OS
       const textDarkRgb = hexToRgb(COLORS.TEXT_DARK);
       doc.setTextColor(textDarkRgb[0], textDarkRgb[1], textDarkRgb[2]);
       doc.setFontSize(9);
+      
+      // Definir posições alinhadas para os labels e valores
+      const labelX = 15;
+      const valueX = 37; // Posição ainda mais próxima para os valores
+      const lineSpacing = 4.5; // Espaçamento reduzido entre linhas
+      
+      // Razão Social
       doc.setFont('helvetica', 'bold');
-      
-      safeText('Razão Social:', 15, yPos);
+      safeText('Razão Social:', labelX, yPos);
       doc.setFont('helvetica', 'normal');
-      safeText(order.company_name || pdfSettings.pdf_company_name || 'MANUTENÇÃO INDUSTRIAL LTDA', 50, yPos);
+      safeText(order.company_name || 'Empresa não informada', valueX, yPos);
       
-      yPos += 6;
+      yPos += lineSpacing;
+      
+      // CNPJ
       doc.setFont('helvetica', 'bold');
-      safeText('CNPJ:', 15, yPos);
+      safeText('CNPJ:', labelX, yPos);
       doc.setFont('helvetica', 'normal');
-      safeText(order.company_cnpj || '12.345.678/0001-90', 35, yPos);
+      const companyCNPJFormatted = formatCNPJ(order.company_cnpj || '00000000000000');
+      safeText(companyCNPJFormatted, valueX, yPos);
       
-      yPos += 6;
+      yPos += lineSpacing;
+      
+      // Endereço
       doc.setFont('helvetica', 'bold');
-      safeText('Endereço:', 15, yPos);
+      safeText('Endereço:', labelX, yPos);
       doc.setFont('helvetica', 'normal');
-      safeText(order.company_address || pdfSettings.pdf_company_address || 'Rua das Indústrias, 1000 - Distrito Industrial - São Paulo/SP - CEP: 01234-567', 45, yPos);
+      safeText(order.company_address || 'Endereço não informado', valueX, yPos);
       
-      yPos += 15;
+      yPos += lineSpacing;
+      
+      // Telefone
+      doc.setFont('helvetica', 'bold');
+      safeText('Telefone:', labelX, yPos);
+      doc.setFont('helvetica', 'normal');
+      const companyPhoneFormatted = formatPhone(order.company_phone || '');
+      safeText(companyPhoneFormatted || 'Telefone não informado', valueX, yPos);
+      
+      yPos += lineSpacing;
+      
+      // Email
+      doc.setFont('helvetica', 'bold');
+      safeText('Email:', labelX, yPos);
+      doc.setFont('helvetica', 'normal');
+      safeText(order.company_email || 'Email não informado', valueX, yPos);
+      
+      yPos += 12;
 
       // ===== SEÇÃO EQUIPAMENTO =====
       doc.setTextColor(blueRgb[0], blueRgb[1], blueRgb[2]);

@@ -10,9 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MainLayout } from "@/components/layout/main-layout"
-import { ArrowLeft, Calendar, Clock, AlertTriangle, FileText, BarChart3, CalendarDays, Settings, List, History } from "lucide-react"
+import { ArrowLeft, Calendar, Clock, AlertTriangle, FileText, BarChart3, CalendarDays, Settings, List } from "lucide-react"
 import { toast } from "sonner"
-import EquipmentHistory from "@/components/EquipmentHistory"
 import { PrioritySelect } from "@/components/ui/priority-select"
 import { DateInput } from "@/components/ui/date-input"
 
@@ -1080,30 +1079,7 @@ export default function NovoAgendamentoPage() {
           </CardContent>
         </Card>
 
-        {/* Histórico do Equipamento */}
-        {formData.equipmentId && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <History className="h-5 w-5" />
-                <span>Histórico do Equipamento</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <EquipmentHistory
-                equipmentId={parseInt(formData.equipmentId)}
-                equipmentName={equipments.find(eq => eq.id === parseInt(formData.equipmentId))?.name}
-                mode="compact"
-                maxItems={5}
-                onViewFullHistory={() => {
-                  // Abrir em nova aba ou modal com histórico completo
-                  window.open(`/equipamentos/${formData.equipmentId}/historico`, '_blank');
-                }}
-                className="border-0 shadow-none p-0"
-              />
-            </CardContent>
-          </Card>
-        )}
+
       </div>
     </MainLayout>
   )

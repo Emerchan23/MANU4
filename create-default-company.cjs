@@ -44,7 +44,7 @@ async function createDefaultCompany() {
         phone, 
         email, 
         address,
-        is_active,
+        active,
         specialties,
         created_at,
         updated_at
@@ -57,7 +57,7 @@ async function createDefaultCompany() {
       '(11) 0000-0000', // phone
       'admin@empresa.com', // email
       'Endereço Padrão', // address
-      1, // is_active
+      1, // active
       'Manutenção Geral' // specialties
     ]);
     
@@ -80,7 +80,7 @@ async function createDefaultCompany() {
       console.log(`   Telefone: ${company.phone}`);
       console.log(`   Email: ${company.email}`);
       console.log(`   Endereço: ${company.address}`);
-      console.log(`   Ativo: ${company.is_active ? 'Sim' : 'Não'}`);
+      console.log(`   Ativo: ${company.active ? 'Sim' : 'Não'}`);
       console.log(`   Especialidades: ${company.specialties}`);
     }
     

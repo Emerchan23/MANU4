@@ -1,43 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '../../../../lib/database.js'
-import multer from 'multer'
-import sharp from 'sharp'
-import fs from 'fs'
-import path from 'path'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
-// Configuração do multer para upload em memória
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 2 * 1024 * 1024, // 2MB
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true)
-    } else {
-      cb(new Error('Tipo de arquivo não permitido. Use PNG, JPEG, JPG ou SVG.'))
-    }
-  }
-})
-
-// GET /api/pdf/logo - Buscar logos disponíveis
+// GET /api/pdf/logo - Buscar logo atual
 export async function GET(request: NextRequest) {
   try {
-    const logos = await query(
-      'SELECT * FROM logo_uploads WHERE is_active = TRUE ORDER BY uploaded_at DESC'
+    console.log('🔍 Buscando logo ativo...')
+    const logo = await query(
+      'SELECT * FROM company_logos WHERE is_active = 1 ORDER BY id DESC LIMIT 1'
     )
     
-    // Se há logos, retornar o primeiro (mais recente)
-    const currentLogo = logos.length > 0 ? logos[0] : null
+    console.log('📋 Logo encontrado:', logo[0] || 'Nenhum logo ativo')
     
     return NextResponse.json({
       success: true,
-      logo: currentLogo,
-      logos
+      logo: logo[0] || null
     })
   } catch (error) {
-    console.error('Erro ao buscar logos:', error)
+    console.error('❌ Erro ao buscar logo:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -48,92 +30,108 @@ export async function GET(request: NextRequest) {
 // POST /api/pdf/logo - Upload de logo
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Iniciando upload de logo...')
+    
     const formData = await request.formData()
     const file = formData.get('logo') as File
     
+    console.log('📁 Arquivo recebido:', {
+      name: file?.name,
+      type: file?.type,
+      size: file?.size
+    })
+    
     if (!file) {
+      console.error('❌ Nenhum arquivo enviado')
       return NextResponse.json(
-        { error: 'Arquivo de logo é obrigatório' },
+        { error: 'Nenhum arquivo enviado' },
         { status: 400 }
       )
     }
     
     // Validar tipo de arquivo
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    console.log('🔍 Validando tipo de arquivo:', file.type, 'permitidos:', allowedTypes)
+    
     if (!allowedTypes.includes(file.type)) {
+      console.error('❌ Tipo de arquivo não permitido:', file.type)
       return NextResponse.json(
-        { error: 'Tipo de arquivo não permitido. Use PNG, JPEG, JPG ou SVG.' },
+        { error: 'Tipo de arquivo não permitido. Use JPG, PNG, GIF, WebP ou SVG.' },
         { status: 400 }
       )
     }
     
-    // Validar tamanho
-    if (file.size > 2 * 1024 * 1024) {
+    // Validar tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      console.error('❌ Arquivo muito grande:', file.size, 'bytes')
       return NextResponse.json(
-        { error: 'Arquivo muito grande. Tamanho máximo: 2MB' },
+        { error: 'Arquivo muito grande. Máximo 5MB.' },
         { status: 400 }
       )
     }
-    
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const originalName = file.name
-    const fileExtension = path.extname(originalName)
-    const fileName = `logo_${Date.now()}${fileExtension}`
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'logos')
-    const filePath = path.join(uploadsDir, fileName)
     
     // Criar diretório se não existir
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true })
+    const uploadDir = join(process.cwd(), 'public', 'uploads', 'logos')
+    console.log('📂 Diretório de upload:', uploadDir)
+    
+    if (!existsSync(uploadDir)) {
+      console.log('📁 Criando diretório de uploads...')
+      await mkdir(uploadDir, { recursive: true })
+      console.log('✅ Diretório criado com sucesso')
+    } else {
+      console.log('✅ Diretório já existe')
     }
     
-    // Processar imagem (exceto SVG)
-    if (file.type !== 'image/svg+xml') {
-      try {
-        // Redimensionar e otimizar imagem
-        const processedBuffer = await sharp(buffer)
-          .resize(200, 80, { 
-            fit: 'inside',
-            withoutEnlargement: true 
-          })
-          .png({ quality: 90 })
-          .toBuffer()
-        
-        fs.writeFileSync(filePath, processedBuffer)
-      } catch (sharpError) {
-        console.error('Erro ao processar imagem:', sharpError)
-        // Se falhar, salvar arquivo original
-        fs.writeFileSync(filePath, buffer)
-      }
-    } else {
-      // Para SVG, salvar diretamente
-      fs.writeFileSync(filePath, buffer)
-    }
+    // Gerar nome único para o arquivo
+    const timestamp = Date.now()
+    const extension = file.name.split('.').pop()
+    const fileName = `logo_${timestamp}.${extension}`
+    const filePath = join(uploadDir, fileName)
+    
+    console.log('💾 Salvando arquivo:', fileName, 'em:', filePath)
+    
+    // Salvar arquivo
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    await writeFile(filePath, buffer)
+    console.log('✅ Arquivo salvo no sistema de arquivos')
+    
+    // Desativar logos anteriores
+    console.log('🔄 Desativando logos anteriores...')
+    await query('UPDATE company_logos SET is_active = 0 WHERE is_active = 1')
+    console.log('✅ Logos anteriores desativados')
     
     // Salvar informações no banco
-    const result = await query(
-      `INSERT INTO logo_uploads (original_name, file_name, file_path, mime_type, file_size)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        originalName,
-        fileName,
-        `/uploads/logos/${fileName}`,
-        file.type,
-        file.size
-      ]
+    const logoData = {
+      original_name: file.name,
+      filename: fileName,
+      file_path: `/uploads/logos/${fileName}`,
+      mime_type: file.type,
+      file_size: file.size,
+      is_active: 1
+    }
+    
+    console.log('💾 Salvando no banco MariaDB:', logoData)
+    
+    await query(
+      `INSERT INTO company_logos (original_name, filename, file_path, mime_type, file_size, is_active) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [logoData.original_name, logoData.filename, logoData.file_path, logoData.mime_type, logoData.file_size, logoData.is_active]
     )
+    
+    console.log('✅ Logo salvo no banco de dados')
+    
+    // Buscar logo recém-criado
+    const newLogo = await query(
+      'SELECT * FROM company_logos WHERE is_active = 1 ORDER BY id DESC LIMIT 1'
+    )
+    
+    console.log('🎉 Upload concluído com sucesso:', newLogo[0])
     
     return NextResponse.json({
       success: true,
       message: 'Logo enviado com sucesso',
-      logo: {
-        id: result.insertId,
-        originalName,
-        fileName,
-        filePath: `/uploads/logos/${fileName}`,
-        mimeType: file.type,
-        fileSize: file.size
-      }
+      logo: newLogo[0]
     })
   } catch (error) {
     console.error('Erro ao fazer upload do logo:', error)
@@ -144,43 +142,28 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE /api/pdf/logo - Deletar logo
+// DELETE /api/pdf/logo - Remover logo
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const logoId = searchParams.get('id')
     
-    if (!id) {
+    if (!logoId) {
       return NextResponse.json(
         { error: 'ID do logo é obrigatório' },
         { status: 400 }
       )
     }
     
-    // Buscar informações do logo
-    const logo = await query('SELECT * FROM logo_uploads WHERE id = ?', [id])
-    if (!logo.length) {
-      return NextResponse.json(
-        { error: 'Logo não encontrado' },
-        { status: 404 }
-      )
-    }
-    
-    // Remover arquivo físico
-    const filePath = path.join(process.cwd(), 'public', logo[0].file_path)
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-    }
-    
-    // Soft delete no banco
-    await query('UPDATE logo_uploads SET is_active = FALSE WHERE id = ?', [id])
+    // Desativar logo
+    await query('UPDATE company_logos SET is_active = FALSE WHERE id = ?', [logoId])
     
     return NextResponse.json({
       success: true,
       message: 'Logo removido com sucesso'
     })
   } catch (error) {
-    console.error('Erro ao deletar logo:', error)
+    console.error('Erro ao remover logo:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

@@ -13,6 +13,16 @@ import { useRouter } from 'next/navigation';
 import { usePersonalization } from '@/components/personalization-context';
 import { useUserPreferences } from '@/contexts/user-preferences-context';
 import { formatDateBR } from '@/lib/date-utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface EquipmentListProps {
   onEdit?: (equipment: Equipment) => void;
@@ -29,6 +39,9 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sectorFilter, setSectorFilter] = useState('all');
   const [subsectorFilter, setSubsectorFilter] = useState('all');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [equipmentToDelete, setEquipmentToDelete] = useState<Equipment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   
   const itemsPerPage = preferences.itemsPerPage;
@@ -73,14 +86,26 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
     setCurrentPage(1);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir este equipamento?')) {
-      setDeletingId(id);
-      const success = await deleteEquipment(id);
-      if (success) {
-        // Equipamento deletado com sucesso
-      }
-      setDeletingId(null);
+  const handleDelete = (equipment: Equipment) => {
+    setEquipmentToDelete(equipment);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!equipmentToDelete) return;
+    
+    setIsDeleting(true);
+    setDeletingId(equipmentToDelete.id!);
+    
+    const success = await deleteEquipment(equipmentToDelete.id!);
+    
+    setIsDeleting(false);
+    setDeletingId(null);
+    setDeleteModalOpen(false);
+    setEquipmentToDelete(null);
+    
+    if (success) {
+      // Equipamento deletado com sucesso
     }
   };
 
@@ -272,7 +297,7 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDelete(equipment.id!)}
+                        onClick={() => handleDelete(equipment)}
                         disabled={deletingId === equipment.id}
                         className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
                       >
@@ -428,6 +453,29 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
           )}
         </>
       )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o equipamento "{equipmentToDelete?.name}"?
+              Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete} 
+              disabled={isDeleting} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

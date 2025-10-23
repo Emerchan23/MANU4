@@ -68,7 +68,7 @@ router.get('/', async (req, res) => {
     }
 
     if (search) {
-      whereConditions.push('(e.name LIKE ? OR ms.description LIKE ? OR u.name LIKE ? OR e.code LIKE ? OR e.patrimonio_number LIKE ?)');
+      whereConditions.push('(e.name LIKE ? OR ms.description LIKE ? OR u.full_name LIKE ? OR e.code LIKE ? OR e.patrimonio_number LIKE ?)');
       const searchTerm = `%${search}%`;
       queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
@@ -107,7 +107,7 @@ router.get('/', async (req, res) => {
         e.code as equipment_code,
         e.patrimonio_number as equipment_patrimonio,
         s.name as sector_name,
-        u.name as assigned_user_name,
+        u.full_name as assigned_user_name,
         u.email as assigned_user_email,
         creator.name as created_by_name,
         mp.name as maintenance_plan_name
@@ -776,27 +776,35 @@ function calculateRecurrenceDatesWithDuration(
         const originalDay = nextDate.getDate();
         const currentMonth = nextDate.getMonth();
         const currentYear = nextDate.getFullYear();
-        const totalMonths = currentMonth + recurrenceInterval;
         
-        // Calcular novo ano e mês
-        const newYear = currentYear + Math.floor(totalMonths / 12);
-        const newMonth = totalMonths % 12;
+        // Calcular novo mês e ano de forma mais segura
+        let newMonth = currentMonth + recurrenceInterval;
+        let newYear = currentYear;
         
-        // Criar nova data com o ano e mês corretos
-        nextDate.setFullYear(newYear);
-        nextDate.setMonth(newMonth);
+        // Ajustar ano se necessário
+        while (newMonth >= 12) {
+          newMonth -= 12;
+          newYear += 1;
+        }
+        while (newMonth < 0) {
+          newMonth += 12;
+          newYear -= 1;
+        }
         
         // Verificar se o dia original é válido no novo mês
         const daysInNewMonth = new Date(newYear, newMonth + 1, 0).getDate();
-        if (originalDay > daysInNewMonth) {
-          // Se o dia original não existe no novo mês (ex: 31 jan -> fev), usar o último dia do mês
-          nextDate.setDate(daysInNewMonth);
-        } else {
-          // Caso contrário, manter o dia original
-          nextDate.setDate(originalDay);
+        const validDay = originalDay > daysInNewMonth ? daysInNewMonth : originalDay;
+        
+        // Criar nova data de forma segura
+        nextDate = new Date(newYear, newMonth, validDay);
+        
+        // Verificar se a data criada é válida
+        if (isNaN(nextDate.getTime())) {
+          console.log('❌ Data inválida calculada na recorrência mensal, parando');
+          return dates;
         }
         
-        console.log(`📅 Recorrência mensal: ${currentYear}-${currentMonth + 1}-${originalDay} -> ${newYear}-${newMonth + 1}-${nextDate.getDate()}`);
+        console.log(`📅 Recorrência mensal: ${currentYear}-${currentMonth + 1}-${originalDay} -> ${newYear}-${newMonth + 1}-${validDay}`);
         break;
       case 'yearly':
       case 'anual':

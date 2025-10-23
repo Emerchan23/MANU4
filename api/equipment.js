@@ -391,7 +391,7 @@ const getEquipmentHistory = async (req, res) => {
         mt.name as maintenance_type,
         mt.category as maintenance_category,
         c.name as company_name,
-        u.name as technician_name,
+        u.full_name as technician_name,
         u2.name as completed_by_name
       FROM maintenance_schedules ms
       LEFT JOIN maintenance_types mt ON ms.maintenance_type_id = mt.id

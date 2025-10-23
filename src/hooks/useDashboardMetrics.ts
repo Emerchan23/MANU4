@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 
 export interface DashboardMetrics {
-  equipmentsActive: number;
+  activeEquipment?: number;
+  equipmentsActive?: number;
   pendingMaintenances: number;
   criticalAlerts: number;
   openServiceOrders: number;

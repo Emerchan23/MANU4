@@ -13,6 +13,16 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { PlusIcon, PencilIcon, TrashIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/outline"
 import type { MaintenanceType } from "@/types/maintenance-types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Interface para o tipo de manutenção da API (com camelCase)
 interface ApiMaintenanceType {
@@ -66,6 +76,9 @@ export function MaintenanceTypes() {
   const [editingType, setEditingType] = useState<MaintenanceType | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [typeToDelete, setTypeToDelete] = useState<MaintenanceType | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     isActive: true,
@@ -186,23 +199,34 @@ export function MaintenanceTypes() {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este tipo de manutenção?")) {
-      try {
-        const response = await fetch(`/api/maintenance-types?id=${id}`, {
-          method: 'DELETE',
-        });
-        
-        if (response.ok) {
-          setMaintenanceTypes((prev) => prev.filter((type) => type.id !== id));
-        } else {
-          const errorData = await response.json();
-          alert('Erro ao excluir tipo de manutenção: ' + (errorData.error || 'Erro desconhecido'));
-        }
-      } catch (error) {
-        console.error('Erro ao excluir tipo de manutenção:', error);
-        alert('Erro ao excluir tipo de manutenção. Tente novamente.');
+  const handleDelete = (type: MaintenanceType) => {
+    setTypeToDelete(type)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDeleteType = async () => {
+    if (!typeToDelete) return
+    
+    setIsDeleting(true)
+    
+    try {
+      const response = await fetch(`/api/maintenance-types?id=${typeToDelete.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setMaintenanceTypes((prev) => prev.filter((type) => type.id !== typeToDelete.id));
+      } else {
+        const errorData = await response.json();
+        alert('Erro ao excluir tipo de manutenção: ' + (errorData.error || 'Erro desconhecido'));
       }
+    } catch (error) {
+      console.error('Erro ao excluir tipo de manutenção:', error);
+      alert('Erro ao excluir tipo de manutenção. Tente novamente.');
+    } finally {
+      setIsDeleting(false)
+      setDeleteModalOpen(false)
+      setTypeToDelete(null)
     }
   };
 
@@ -392,7 +416,7 @@ export function MaintenanceTypes() {
                   <Button variant="ghost" size="sm" onClick={() => handleEdit(type)}>
                     <PencilIcon className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(type.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(type)}>
                     <TrashIcon className="h-4 w-4" />
                   </Button>
                 </div>
@@ -432,6 +456,28 @@ export function MaintenanceTypes() {
           </Card>
         )}
       </div>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o tipo de manutenção "{typeToDelete?.name}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteType} 
+              disabled={isDeleting} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

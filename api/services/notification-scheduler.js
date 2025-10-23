@@ -157,7 +157,7 @@ class NotificationScheduler {
     try {
       // Buscar usuários que devem receber este tipo de notificação
       const [users] = await connection.execute(`
-        SELECT DISTINCT u.id, u.name, u.email, ns.push_enabled
+        SELECT DISTINCT u.id, u.full_name as name, u.email, ns.push_enabled
         FROM users u
         LEFT JOIN notification_settings ns ON ns.user_id = u.id AND ns.type = ?
         WHERE u.is_active = 1 

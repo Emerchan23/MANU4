@@ -29,18 +29,14 @@ export async function GET(
         e.model as equipment_model,
         e.serial_number as equipment_serial,
         c.name as company_name,
-        c.contact_phone as company_phone,
         u1.name as created_by_name,
         u2.name as assigned_to_name,
-        st.name as template_name,
-        st.description_template,
         mt.name as maintenance_type_name
       FROM service_orders so
       LEFT JOIN equipment e ON so.equipment_id = e.id
       LEFT JOIN companies c ON so.company_id = c.id
       LEFT JOIN users u1 ON so.created_by = u1.id
       LEFT JOIN users u2 ON so.assigned_to = u2.id
-      LEFT JOIN service_templates st ON so.template_id = st.id
       LEFT JOIN maintenance_types mt ON so.maintenance_type_id = mt.id
       WHERE so.id = ?
     `

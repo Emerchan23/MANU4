@@ -8,15 +8,31 @@
 export function formatDateBR(date: Date | string | null): string {
   if (!date) return '';
   
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(dateObj.getTime())) return '';
-  
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const year = dateObj.getFullYear();
-  
-  return `${day}/${month}/${year}`;
+  try {
+    let dateObj: Date;
+    
+    if (typeof date === 'string') {
+      // Verificar se é uma string vazia ou inválida
+      if (date.trim() === '' || date === 'Invalid Date') return '';
+      
+      // Tentar criar a data
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Verificar se a data é válida
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
+    
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    console.warn('Erro ao formatar data:', error, 'Data recebida:', date);
+    return '';
+  }
 }
 
 /**
@@ -25,17 +41,33 @@ export function formatDateBR(date: Date | string | null): string {
 export function formatDateTimeBR(date: Date | string | null): string {
   if (!date) return '';
   
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(dateObj.getTime())) return '';
-  
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const year = dateObj.getFullYear();
-  const hours = dateObj.getHours().toString().padStart(2, '0');
-  const minutes = dateObj.getMinutes().toString().padStart(2, '0');
-  
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+  try {
+    let dateObj: Date;
+    
+    if (typeof date === 'string') {
+      // Verificar se é uma string vazia ou inválida
+      if (date.trim() === '' || date === 'Invalid Date') return '';
+      
+      // Tentar criar a data
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Verificar se a data é válida
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
+    
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+    const hours = dateObj.getHours().toString().padStart(2, '0');
+    const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  } catch (error) {
+    console.warn('Erro ao formatar data e hora:', error, 'Data recebida:', date);
+    return '';
+  }
 }
 
 /**
@@ -69,15 +101,31 @@ export function parseDateBR(dateStr: string): Date | null {
 export function formatDateISO(date: Date | string | null): string {
   if (!date) return '';
   
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(dateObj.getTime())) return '';
-  
-  const year = dateObj.getFullYear();
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
+  try {
+    let dateObj: Date;
+    
+    if (typeof date === 'string') {
+      // Verificar se é uma string vazia ou inválida
+      if (date.trim() === '' || date === 'Invalid Date') return '';
+      
+      // Tentar criar a data
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    
+    // Verificar se a data é válida
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
+    
+    const year = dateObj.getFullYear();
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.warn('Erro ao formatar data ISO:', error, 'Data recebida:', date);
+    return '';
+  }
 }
 
 /**
@@ -149,4 +197,66 @@ export function addDays(date: Date | string, days: number): Date {
   const result = typeof date === 'string' ? new Date(date) : new Date(date);
   result.setDate(result.getDate() + days);
   return result;
+}
+
+/**
+ * Função auxiliar para converter string de data brasileira para ISO
+ */
+export function convertBRToISO(dateBR: string): string {
+  if (!dateBR) return '';
+  
+  try {
+    // Se já está no formato ISO, retorna como está
+    if (dateBR.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateBR;
+    }
+    
+    // Se está no formato brasileiro dd/mm/yyyy
+    if (dateBR.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      const [day, month, year] = dateBR.split('/');
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // Tentar converter usando Date
+    const date = new Date(dateBR);
+    if (!isNaN(date.getTime())) {
+      return formatDateISO(date);
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Erro ao converter data BR para ISO:', error, 'Data recebida:', dateBR);
+    return '';
+  }
+}
+
+/**
+ * Função auxiliar para converter string de data ISO para brasileira
+ */
+export function convertISOToBR(dateISO: string): string {
+  if (!dateISO) return '';
+  
+  try {
+    // Se já está no formato brasileiro, retorna como está
+    if (dateISO.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      return dateISO;
+    }
+    
+    // Se está no formato ISO yyyy-mm-dd
+    if (dateISO.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateISO.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Tentar converter usando Date
+    const date = new Date(dateISO);
+    if (!isNaN(date.getTime())) {
+      return formatDateBR(date);
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Erro ao converter data ISO para BR:', error, 'Data recebida:', dateISO);
+    return '';
+  }
 }

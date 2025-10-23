@@ -1,35 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/database.js'
-
-// Função auxiliar para formatar data brasileira
-function formatDateBR(date: Date | string | null): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(dateObj.getTime())) return '';
-  
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const year = dateObj.getFullYear();
-  
-  return `${day}/${month}/${year}`;
-}
-
-// Função auxiliar para formatar data ISO
-function formatDateISO(date: Date | string | null): string {
-  if (!date) return '';
-  
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(dateObj.getTime())) return '';
-  
-  const year = dateObj.getFullYear();
-  const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-  const day = dateObj.getDate().toString().padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-}
+import { formatDateBR, formatDateISO } from '@/lib/date-utils-br'
 
 // POST - Atualizar ordem de serviço (usando POST para evitar problemas com PUT)
 export async function POST(
@@ -151,12 +121,22 @@ export async function POST(
 
     if (scheduledDate !== undefined) {
       updateFields.push('scheduled_date = ?')
-      updateValues.push(scheduledDate ? formatDateISO(new Date(scheduledDate)) : null)
+      if (scheduledDate) {
+        const formattedDate = formatDateISO(scheduledDate)
+        updateValues.push(formattedDate || null)
+      } else {
+        updateValues.push(null)
+      }
     }
 
     if (completionDate !== undefined) {
       updateFields.push('completion_date = ?')
-      updateValues.push(completionDate ? formatDateISO(new Date(completionDate)) : null)
+      if (completionDate) {
+        const formattedDate = formatDateISO(completionDate)
+        updateValues.push(formattedDate || null)
+      } else {
+        updateValues.push(null)
+      }
     }
 
     if (observations !== undefined) {

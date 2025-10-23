@@ -65,7 +65,7 @@ export function CalendarWidget({ events, loading = false }: CalendarWidgetProps)
           Próximos Agendamentos
         </h3>
         <span className="text-sm text-gray-500">
-          Próximos 7 dias
+          Próximos 30 dias
         </span>
       </div>
 
@@ -76,7 +76,7 @@ export function CalendarWidget({ events, loading = false }: CalendarWidgetProps)
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <p className="text-gray-500">Nenhum agendamento nos próximos 7 dias</p>
+          <p className="text-gray-500">Nenhum agendamento nos próximos 30 dias</p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto">

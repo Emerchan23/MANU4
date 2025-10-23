@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Upload JPG</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; }
+        .result { margin: 20px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Teste de Upload de Arquivos JPG</h1>
+        
+        <div class="upload-area">
+            <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.gif,.webp,.svg" />
+            <br><br>
+            <button onclick="uploadFile()">Fazer Upload</button>
+        </div>
+        
+        <div id="result"></div>
+        
+        <div class="info">
+            <h3>Informações de Debug:</h3>
+            <div id="fileInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function showFileInfo(file) {
+            const fileInfoDiv = document.getElementById('fileInfo');
+            fileInfoDiv.innerHTML = `
+                <p><strong>Nome:</strong> ${file.name}</p>
+                <p><strong>Tipo MIME:</strong> ${file.type}</p>
+                <p><strong>Tamanho:</strong> ${(file.size / 1024).toFixed(2)} KB</p>
+                <p><strong>Extensão:</strong> ${file.name.split('.').pop()}</p>
+            `;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showResult('Por favor, selecione um arquivo', 'error');
+                return;
+            }
+
+            showFileInfo(file);
+            showResult('Fazendo upload...', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                const response = await fetch('/api/pdf/logo', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showResult(`✅ Upload realizado com sucesso! ${result.message}`, 'success');
+                } else {
+                    showResult(`❌ Erro no upload: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Erro de conexão: ${error.message}`, 'error');
+            }
+        }
+
+        // Mostrar informações do arquivo quando selecionado
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                showFileInfo(file);
+            }
+        });
+    </script>
+</body>
+</html>

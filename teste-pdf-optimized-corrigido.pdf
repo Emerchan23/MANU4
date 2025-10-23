@@ -1,0 +1,119 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Equipamento - Equipamento Teste Direto</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            width: 150px;
+            color: #495057;
+        }
+        .info-value {
+            flex: 1;
+        }
+        .maintenance-section {
+            margin-top: 30px;
+        }
+        .maintenance-item {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .status-active { color: #28a745; }
+        .status-inactive { color: #dc3545; }
+        .status-maintenance { color: #ffc107; }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Relatório de Equipamento</h1>
+        <p><strong>Equipamento:</strong> Equipamento Teste Direto</p>
+        <p><strong>Gerado em:</strong> 22/10/2025, 20:43:07</p>
+    </div>
+
+    <div class="info-box">
+        <h2>🔧 Informações do Equipamento</h2>
+        <div class="info-row">
+            <div class="info-label">ID:</div>
+            <div class="info-value">14</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Nome:</div>
+            <div class="info-value">Equipamento Teste Direto</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Modelo:</div>
+            <div class="info-value">Modelo Teste</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Número de Série:</div>
+            <div class="info-value">SN1760907249996</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Fabricante:</div>
+            <div class="info-value">Fabricante Teste</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Patrimônio:</div>
+            <div class="info-value">PAT1760907249996</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Status:</div>
+            <div class="info-value">
+                <span class="status-ativo">ativo</span>
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Observações:</div>
+            <div class="info-value">Teste de criação direta no banco</div>
+        </div>
+    </div>
+
+    <div class="maintenance-section">
+        <h2>🔨 Histórico de Manutenções</h2>
+        <p>Nenhuma manutenção encontrada no histórico.</p>
+    </div>
+
+    <div class="footer">
+        <p>Relatório gerado automaticamente pelo Sistema de Manutenção</p>
+        <p>Data de geração: 22/10/2025, 20:43:07</p>
+    </div>
+</body>
+</html>
+  

@@ -60,22 +60,23 @@ export function CompanyForm({ company, mode }: CompanyFormProps) {
     if (company && mode === 'edit') {
       console.log('🔍 Dados da empresa recebidos:', company);
       
+      // Garantir que todos os valores sejam strings, nunca null ou undefined
       setValue('name', company.name || '');
       setValue('cnpj', formatCNPJ(company.cnpj || ''));
       setValue('contact_person', company.contact_person || '');
       setValue('phone', formatPhone(company.phone || ''));
       setValue('email', company.email || '');
       setValue('address', company.address || '');
-      setValue('specialties', company.specialties || '');
+      setValue('specialties', company.specialties || ''); // Corrigido: garantir string vazia se null
       
       console.log('✅ Valores definidos no formulário:');
-      console.log('- name:', company.name);
+      console.log('- name:', company.name || '');
       console.log('- cnpj:', formatCNPJ(company.cnpj || ''));
-      console.log('- contact_person:', company.contact_person);
+      console.log('- contact_person:', company.contact_person || '');
       console.log('- phone:', formatPhone(company.phone || ''));
-      console.log('- email:', company.email);
-      console.log('- address:', company.address);
-      console.log('- specialties:', company.specialties);
+      console.log('- email:', company.email || '');
+      console.log('- address:', company.address || '');
+      console.log('- specialties:', company.specialties || '');
     }
   }, [company, mode, setValue]);
 

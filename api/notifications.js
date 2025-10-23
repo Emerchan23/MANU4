@@ -52,7 +52,7 @@ const getNotifications = async (req, res) => {
         n.read_at,
         n.created_at,
         n.updated_at,
-        u.name as user_name,
+        u.full_name as user_name,
         e.name as equipment_name,
         ms.scheduled_date as maintenance_date
       FROM notifications n

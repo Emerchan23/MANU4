@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   Wrench
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Select,
   SelectContent,
@@ -29,6 +30,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useMaintenancePlans } from '@/src/hooks/useMaintenancePlans'
 import { MaintenancePlan, MaintenanceFrequency, MaintenanceType } from '@/types/maintenance-scheduling'
 
@@ -89,6 +100,9 @@ export default function PlanosManutencaoPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [frequencyFilter, setFrequencyFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [planToDelete, setPlanToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Usar o hook para buscar dados reais
   const { 
@@ -130,13 +144,25 @@ export default function PlanosManutencaoPage() {
     return matchesSearch && matchesType && matchesFrequency && matchesStatus
   })
 
-  const handleDeletePlan = async (planId: string) => {
-    if (confirm('Tem certeza que deseja excluir este plano de manutenção?')) {
-      const success = await deletePlan(planId)
-      if (success) {
-        // Recarregar dados após exclusão
-        fetchPlans()
-      }
+  const handleDeletePlan = (planId: string) => {
+    setPlanToDelete(planId)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeletePlan = async () => {
+    if (!planToDelete) return
+    
+    setIsDeleting(true)
+    try {
+      await deletePlan(planToDelete)
+      toast.success('Plano de manutenção excluído com sucesso!')
+      setDeleteDialogOpen(false)
+      setPlanToDelete(null)
+    } catch (error: any) {
+      console.error('Erro ao excluir plano:', error)
+      toast.error(error.message || 'Erro ao excluir plano de manutenção')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -397,6 +423,29 @@ export default function PlanosManutencaoPage() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este plano de manutenção? Esta ação não pode ser desfeita e todos os agendamentos relacionados também serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePlan}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   )
 }

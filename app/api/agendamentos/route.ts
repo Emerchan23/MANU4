@@ -293,8 +293,39 @@ function calculateRecurrenceDates(
         console.log(`📅 [RECORRÊNCIA] Calculando próxima data semanal: +${recurrenceInterval * 7} dias`);
         break;
       case 'monthly':
-        nextDate.setMonth(nextDate.getMonth() + recurrenceInterval);
-        console.log(`📅 [RECORRÊNCIA] Calculando próxima data mensal: +${recurrenceInterval} meses`);
+        // Método mais seguro para adicionar meses, lidando corretamente com mudança de ano e dias do mês
+        const originalDay = nextDate.getDate();
+        const currentMonth = nextDate.getMonth();
+        const currentYear = nextDate.getFullYear();
+        
+        // Calcular novo mês e ano de forma mais segura
+        let newMonth = currentMonth + recurrenceInterval;
+        let newYear = currentYear;
+        
+        // Ajustar ano se necessário
+        while (newMonth >= 12) {
+          newMonth -= 12;
+          newYear += 1;
+        }
+        while (newMonth < 0) {
+          newMonth += 12;
+          newYear -= 1;
+        }
+        
+        // Verificar se o dia original é válido no novo mês
+        const daysInNewMonth = new Date(newYear, newMonth + 1, 0).getDate();
+        const validDay = originalDay > daysInNewMonth ? daysInNewMonth : originalDay;
+        
+        // Criar nova data de forma segura
+        nextDate = new Date(newYear, newMonth, validDay);
+        
+        // Verificar se a data criada é válida
+        if (isNaN(nextDate.getTime())) {
+          console.log('❌ [RECORRÊNCIA] Data inválida calculada na recorrência mensal, parando');
+          return dates;
+        }
+        
+        console.log(`📅 [RECORRÊNCIA] Recorrência mensal: ${currentYear}-${currentMonth + 1}-${originalDay} -> ${newYear}-${newMonth + 1}-${validDay}`);
         break;
       case 'yearly':
         nextDate.setFullYear(nextDate.getFullYear() + recurrenceInterval);

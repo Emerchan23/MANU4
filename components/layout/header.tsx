@@ -136,7 +136,9 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
         <div className="flex flex-1 items-center">
-          <h2 className="text-lg font-semibold text-foreground">Sistema de Manutenção Hospitalar</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {getGreeting()}{user?.name ? `, ${user.name}` : ''}
+          </h2>
         </div>
         <div className="flex items-center gap-x-4 lg:gap-x-6">
           <ThemeToggle />

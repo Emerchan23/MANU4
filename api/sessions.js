@@ -7,7 +7,7 @@ const router = express.Router()
 router.get('/', async (req, res) => {
   try {
     const sessions = await query(`
-      SELECT s.*, u.name as user_name, u.nick as username
+      SELECT s.*, u.full_name as user_name, u.username
       FROM user_sessions s
       LEFT JOIN users u ON s.user_id = u.id
       WHERE s.expires_at > NOW()
@@ -27,7 +27,7 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params
 
     const sessions = await query(`
-      SELECT s.*, u.name as user_name, u.nick as username
+      SELECT s.*, u.full_name as user_name, u.username
       FROM user_sessions s
       LEFT JOIN users u ON s.user_id = u.id
       WHERE s.id = ?

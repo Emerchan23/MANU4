@@ -30,13 +30,13 @@ export async function GET(
       const [statsRows] = await connection.execute(`
         SELECT 
           COUNT(*) as total_maintenances,
-          COALESCE(SUM(estimated_cost), 0) as total_cost,
+          COALESCE(SUM(COALESCE(actual_cost, estimated_cost, cost)), 0) as total_cost,
           0 as average_repair_time,
           ROUND(
             (COUNT(CASE WHEN status = 'CONCLUIDA' THEN 1 END) * 100.0 / 
              NULLIF(COUNT(*), 0)), 1
           ) as success_rate
-        FROM maintenance_schedules
+        FROM service_orders
         WHERE equipment_id = ?
       `, [equipmentId])
 

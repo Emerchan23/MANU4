@@ -1,90 +1,106 @@
-const mysql = require('mysql2/promise');
+const https = require('https');
+const http = require('http');
 
-async function testDeleteCompany() {
-  try {
-    const connection = await mysql.createConnection({
-      host: 'localhost',
-      user: 'root',
-      password: '',
-      database: 'hospital_maintenance'
-    });
-
-    console.log('🔗 Conectado ao banco de dados');
-    
-    // 1. Criar uma empresa de teste para deletar
-    console.log('\n📝 Criando empresa de teste...');
-    const testCompany = {
-      name: 'Empresa Teste DELETE',
-      cnpj: '99.999.999/0001-99',
-      contact_person: 'Teste Delete',
-      phone: '(99) 99999-9999',
-      email: 'delete@teste.com',
-      address: 'Rua Delete, 999',
-      specialties: 'Teste'
+function makeRequest(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const requestOptions = {
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname + urlObj.search,
+      method: options.method || 'GET',
+      headers: options.headers || {}
     };
 
-    const [result] = await connection.execute(
-      'INSERT INTO companies (name, cnpj, contact_person, phone, email, address, specialties) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [testCompany.name, testCompany.cnpj, testCompany.contact_person, testCompany.phone, testCompany.email, testCompany.address, testCompany.specialties]
-    );
-
-    const companyId = result.insertId;
-    console.log('✅ Empresa criada com ID:', companyId);
-
-    // 2. Verificar se a empresa foi criada
-    const [companies] = await connection.execute('SELECT * FROM companies WHERE id = ?', [companyId]);
-    console.log('📋 Empresa encontrada:', companies[0] ? companies[0].name : 'Não encontrada');
-
-    // 3. Verificar se há ordens de serviço vinculadas
-    const [serviceOrders] = await connection.execute('SELECT COUNT(*) as count FROM service_orders WHERE company_id = ?', [companyId]);
-    console.log('📊 Ordens de serviço vinculadas:', serviceOrders[0].count);
-
-    // 4. Deletar a empresa
-    console.log('\n🗑️ Deletando empresa...');
-    const [deleteResult] = await connection.execute('DELETE FROM companies WHERE id = ?', [companyId]);
-    console.log('✅ Resultado da exclusão - Linhas afetadas:', deleteResult.affectedRows);
-
-    // 5. Verificar se a empresa foi realmente deletada
-    const [verifyDelete] = await connection.execute('SELECT * FROM companies WHERE id = ?', [companyId]);
-    console.log('🔍 Verificação pós-exclusão:', verifyDelete.length === 0 ? 'Empresa deletada com sucesso' : 'Empresa ainda existe');
-
-    // 6. Testar a API DELETE via fetch
-    console.log('\n🌐 Testando API DELETE...');
-    
-    // Primeiro, criar outra empresa para testar via API
-    const [result2] = await connection.execute(
-      'INSERT INTO companies (name, cnpj, contact_person, phone, email, address, specialties) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ['Empresa API Test', '88.888.888/0001-88', 'API Test', '(88) 88888-8888', 'api@test.com', 'Rua API, 888', 'API Test']
-    );
-
-    const apiTestId = result2.insertId;
-    console.log('✅ Empresa para teste API criada com ID:', apiTestId);
-
-    // Simular chamada da API
-    try {
-      const response = await fetch(`http://localhost:3000/api/companies?id=${apiTestId}`, {
-        method: 'DELETE'
+    const req = http.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
       });
+      res.on('end', () => {
+        try {
+          const jsonData = JSON.parse(data);
+          resolve({
+            status: res.statusCode,
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            json: () => Promise.resolve(jsonData),
+            headers: res.headers
+          });
+        } catch (e) {
+          resolve({
+            status: res.statusCode,
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            text: () => Promise.resolve(data),
+            headers: res.headers
+          });
+        }
+      });
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ API DELETE funcionou:', data.message);
-        
-        // Verificar se foi realmente deletada
-        const [verifyApiDelete] = await connection.execute('SELECT * FROM companies WHERE id = ?', [apiTestId]);
-        console.log('🔍 Verificação API pós-exclusão:', verifyApiDelete.length === 0 ? 'Empresa deletada via API com sucesso' : 'Empresa ainda existe após API');
-      } else {
-        const errorData = await response.json();
-        console.log('❌ Erro na API DELETE:', errorData);
-      }
-    } catch (apiError) {
-      console.log('❌ Erro ao chamar API:', apiError.message);
+    req.on('error', reject);
+    
+    if (options.body) {
+      req.write(options.body);
     }
+    
+    req.end();
+  });
+}
 
-    await connection.end();
-    console.log('\n✅ Teste de DELETE concluído!');
+async function testDeleteCompany() {
+  console.log('🧪 Testando DELETE de empresa...');
+  
+  try {
+    // Primeiro, vamos listar as empresas para ver qual podemos tentar deletar
+    console.log('📋 Listando empresas disponíveis...');
+    const listResponse = await makeRequest('http://localhost:3000/api/companies');
+    const listData = await listResponse.json();
+    
+    console.log('Status da listagem:', listResponse.status);
+    console.log('Dados das empresas:', JSON.stringify(listData, null, 2));
+    
+    if (listData.success && listData.companies && listData.companies.length > 0) {
+      // Vamos tentar deletar uma empresa que não tenha dependências
+      // Procurar por uma empresa que não seja a primeira (que tem ordens de serviço)
+      let companyToDelete = null;
+      for (let i = 1; i < listData.companies.length; i++) {
+        companyToDelete = listData.companies[i];
+        break;
+      }
+      
+      if (!companyToDelete) {
+        companyToDelete = listData.companies[0];
+      }
+      
+      console.log(`\n🗑️ Tentando deletar empresa ID: ${companyToDelete.id} - ${companyToDelete.name}`);
+      
+      const deleteResponse = await makeRequest(`http://localhost:3000/api/companies/${companyToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Status da exclusão:', deleteResponse.status);
+      console.log('Headers da resposta:', deleteResponse.headers);
+      
+      const deleteData = await deleteResponse.json();
+      console.log('Resposta da exclusão:', JSON.stringify(deleteData, null, 2));
+      
+      if (!deleteResponse.ok) {
+        console.log('❌ Erro na exclusão!');
+        console.log('Status:', deleteResponse.status);
+        console.log('Mensagem:', deleteData.message || deleteData.error);
+      } else {
+        console.log('✅ Exclusão bem-sucedida!');
+      }
+    } else {
+      console.log('❌ Nenhuma empresa encontrada para testar');
+    }
+    
   } catch (error) {
-    console.error('❌ Erro no teste:', error);
+    console.error('❌ Erro durante o teste:', error);
+    console.error('Stack trace:', error.stack);
   }
 }
 
