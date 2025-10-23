@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
     console.log('🔍 [MAINTENANCE-DASHBOARD] ===== CONFIGURANDO FILTROS =====')
     console.log('🔍 [MAINTENANCE-DASHBOARD] Company ID recebido:', company_id)
     
-    const companyFilter = company_id ? 'AND ms.company_id = ?' : ''
+    // Modificar filtro para incluir registros com company_id null ou igual ao solicitado
+    const companyFilter = company_id ? 'AND (ms.company_id = ? OR ms.company_id IS NULL)' : ''
     const companyParams = company_id ? [company_id] : []
     console.log('🔍 [MAINTENANCE-DASHBOARD] Filtro de empresa:', { companyFilter, companyParams })
 
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
       const pendingCountQuery = `
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms
-        WHERE ms.status IN ('AGENDADA', 'SCHEDULED') ${companyFilter}
+        WHERE ms.status IN ('AGENDADA', 'SCHEDULED', 'PENDENTE', '') ${companyFilter}
       `
       console.log('🔍 [MAINTENANCE-DASHBOARD] Query pendentes:', pendingCountQuery)
       console.log('🔍 [MAINTENANCE-DASHBOARD] Parâmetros pendentes:', companyParams)
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
       const overdueCountQuery = `
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms 
-        WHERE ms.status IN ('AGENDADA', 'SCHEDULED') 
+        WHERE ms.status IN ('AGENDADA', 'SCHEDULED', 'PENDENTE', '') 
         AND DATE(ms.scheduled_date) < CURDATE() ${companyFilter}
       `
       console.log('🔍 [MAINTENANCE-DASHBOARD] Query atrasados:', overdueCountQuery)
@@ -130,37 +131,23 @@ export async function GET(request: NextRequest) {
       overdueCount = 0
     }
 
-    // 3. Get completed this month count
-    console.log('📊 [MAINTENANCE-DASHBOARD] Buscando concluídos este mês...')
-    let completedThisMonth = 0
+    // 3. Get total completed count (all time)
+    console.log('📊 [MAINTENANCE-DASHBOARD] Buscando total de concluídos...')
+    let totalCompleted = 0
     try {
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      
-      function formatDate(date) {
-        return date.toISOString().split('T')[0]
-      }
-      
-      const startOfMonthStr = formatDate(startOfMonth)
-      const endOfMonthStr = formatDate(endOfMonth)
-      
       const completedCountQuery = `
         SELECT COUNT(*) as count 
         FROM maintenance_schedules ms 
-        WHERE ms.status IN ('CONCLUIDA', 'COMPLETED') 
-        AND DATE(ms.updated_at) >= DATE(?) 
-        AND DATE(ms.updated_at) <= DATE(?) ${companyFilter}
+        WHERE ms.status IN ('CONCLUIDA', 'COMPLETED') ${companyFilter}
       `
-      const completedParams = [startOfMonthStr, endOfMonthStr, ...companyParams]
-      console.log('Query concluídos:', completedCountQuery, 'Params:', completedParams)
-      const completedResult = await query(completedCountQuery, completedParams)
-      console.log('Resultado bruto concluídos:', completedResult)
-      completedThisMonth = completedResult[0]?.count || 0
-      console.log('✅ [MAINTENANCE-DASHBOARD] Concluídos este mês:', completedThisMonth)
+      console.log('Query total concluídos:', completedCountQuery, 'Params:', companyParams)
+      const completedResult = await query(completedCountQuery, companyParams)
+      console.log('Resultado bruto total concluídos:', completedResult)
+      totalCompleted = completedResult[0]?.count || 0
+      console.log('✅ [MAINTENANCE-DASHBOARD] Total concluídos:', totalCompleted)
     } catch (error) {
-      console.error('❌ [MAINTENANCE-DASHBOARD] Erro ao buscar concluídos:', error)
-      completedThisMonth = 0
+      console.error('❌ [MAINTENANCE-DASHBOARD] Erro ao buscar total concluídos:', error)
+      totalCompleted = 0
     }
 
     // 4. Calculate completion rate
@@ -187,7 +174,7 @@ export async function GET(request: NextRequest) {
       const totalScheduledResult = await query(totalScheduledQuery, totalScheduledParams)
       const totalScheduledThisMonth = totalScheduledResult[0]?.count || 0
       completionRate = totalScheduledThisMonth > 0 
-        ? Math.round((completedThisMonth / totalScheduledThisMonth) * 100)
+        ? Math.round((totalCompleted / totalScheduledThisMonth) * 100)
         : 0
       console.log('📊 [MAINTENANCE-DASHBOARD] Taxa de conclusão:', completionRate + '%')
     } catch (error) {
@@ -199,7 +186,7 @@ export async function GET(request: NextRequest) {
     console.log('📊 [MAINTENANCE-DASHBOARD] Resumo final:', {
       pending: pendingCount,
       overdue: overdueCount,
-      completedThisMonth,
+      totalCompleted,
       completionRate
     })
 
@@ -209,7 +196,7 @@ export async function GET(request: NextRequest) {
         metrics: {
           pending: pendingCount,
           overdue: overdueCount,
-          completedThisMonth,
+          completedThisMonth: totalCompleted,
           completionRate
         },
         upcomingSchedules: [],

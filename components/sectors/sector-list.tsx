@@ -117,6 +117,10 @@ export function SectorList() {
     if (!editingSector) return
 
     try {
+      console.log('🔄 Iniciando atualização do setor:', editingSector.id)
+      console.log('📋 Subsetores existentes:', editingSector.subsectors)
+      console.log('📝 Subsetores novos:', updatedSector.subsectors)
+
       // Atualizar setor
       const response = await fetch('/api/sectors', {
         method: 'PUT',
@@ -132,37 +136,100 @@ export function SectorList() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao atualizar setor')
+        const errorData = await response.json()
+        console.error('❌ Erro ao atualizar setor:', errorData)
+        throw new Error(errorData.error || 'Erro ao atualizar setor')
       }
 
       const sectorData = await response.json()
+      console.log('✅ Setor atualizado com sucesso')
 
-      // Primeiro, deletar todos os subsetores existentes
-      for (const existingSubsector of editingSector.subsectors) {
-        await fetch('/api/subsectors', {
+      // Lógica inteligente para subsetores
+      const existingSubsectors = editingSector.subsectors
+      const newSubsectors = updatedSector.subsectors.filter(sub => sub.name.trim() !== '')
+
+      // Identificar subsetores para deletar (existem mas não estão nos novos)
+      const subsectorsToDelete = existingSubsectors.filter(existing => 
+        !newSubsectors.some(newSub => newSub.id === existing.id)
+      )
+
+      // Identificar subsetores para criar (não têm ID ou têm ID temporário)
+      const subsectorsToCreate = newSubsectors.filter(newSub => 
+        !newSub.id || newSub.id.toString().startsWith('temp_') || !existingSubsectors.some(existing => existing.id === newSub.id)
+      )
+
+      // Identificar subsetores para atualizar (têm ID e existem nos dois arrays)
+      const subsectorsToUpdate = newSubsectors.filter(newSub => 
+        newSub.id && !newSub.id.toString().startsWith('temp_') && existingSubsectors.some(existing => existing.id === newSub.id)
+      )
+
+      console.log('🗑️ Subsetores para deletar:', subsectorsToDelete.length)
+      console.log('➕ Subsetores para criar:', subsectorsToCreate.length)
+      console.log('✏️ Subsetores para atualizar:', subsectorsToUpdate.length)
+
+      // Deletar subsetores removidos
+      for (const subsectorToDelete of subsectorsToDelete) {
+        console.log(`🗑️ Deletando subsetor: ${subsectorToDelete.name} (ID: ${subsectorToDelete.id})`)
+        const deleteResponse = await fetch(`/api/subsectors?id=${subsectorToDelete.id}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: existingSubsector.id
-          }),
+          }
         })
+
+        if (!deleteResponse.ok) {
+          const errorData = await deleteResponse.json()
+          console.error(`❌ Erro ao deletar subsetor ${subsectorToDelete.name}:`, errorData)
+          throw new Error(`Erro ao deletar subsetor ${subsectorToDelete.name}: ${errorData.error}`)
+        }
+        console.log(`✅ Subsetor ${subsectorToDelete.name} deletado com sucesso`)
       }
 
-      // Depois, criar os novos subsetores
-      for (const subsector of updatedSector.subsectors) {
-        await fetch('/api/subsectors', {
+      // Criar novos subsetores
+      for (const subsectorToCreate of subsectorsToCreate) {
+        console.log(`➕ Criando subsetor: ${subsectorToCreate.name}`)
+        const createResponse = await fetch('/api/subsectors', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: subsector.name,
-            description: subsector.description,
+            name: subsectorToCreate.name,
+            description: subsectorToCreate.description,
             sector_id: editingSector.id
           }),
         })
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json()
+          console.error(`❌ Erro ao criar subsetor ${subsectorToCreate.name}:`, errorData)
+          throw new Error(`Erro ao criar subsetor ${subsectorToCreate.name}: ${errorData.error}`)
+        }
+        console.log(`✅ Subsetor ${subsectorToCreate.name} criado com sucesso`)
+      }
+
+      // Atualizar subsetores existentes
+      for (const subsectorToUpdate of subsectorsToUpdate) {
+        console.log(`✏️ Atualizando subsetor: ${subsectorToUpdate.name} (ID: ${subsectorToUpdate.id})`)
+        const updateResponse = await fetch('/api/subsectors', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: subsectorToUpdate.id,
+            name: subsectorToUpdate.name,
+            description: subsectorToUpdate.description,
+            sector_id: editingSector.id
+          }),
+        })
+
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json()
+          console.error(`❌ Erro ao atualizar subsetor ${subsectorToUpdate.name}:`, errorData)
+          throw new Error(`Erro ao atualizar subsetor ${subsectorToUpdate.name}: ${errorData.error}`)
+        }
+        console.log(`✅ Subsetor ${subsectorToUpdate.name} atualizado com sucesso`)
       }
       
       console.log('Setor atualizado com sucesso!')

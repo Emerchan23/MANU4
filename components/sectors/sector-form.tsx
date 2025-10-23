@@ -67,18 +67,36 @@ export function SectorForm({ sector, onSubmit, onCancel }: SectorFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validar se todos os subsetores têm nome
+    // Validar campos obrigatórios do setor
+    if (!formData.name.trim()) {
+      alert("O nome do setor é obrigatório")
+      return
+    }
+
+    if (!formData.responsible.trim()) {
+      alert("O responsável pelo setor é obrigatório")
+      return
+    }
+
+    // Filtrar subsetores válidos (com nome preenchido)
+    const validSubsectors = subsectors.filter((sub) => sub.name.trim())
+    
+    // Validar se há subsetores com nome vazio (apenas avisar, não bloquear)
     const invalidSubsectors = subsectors.filter((sub) => !sub.name.trim())
     if (invalidSubsectors.length > 0) {
-      alert("Todos os subsetores devem ter um nome")
-      return
+      const confirmSubmit = confirm(
+        `Existem ${invalidSubsectors.length} subsetor(es) com nome vazio que serão ignorados. Deseja continuar?`
+      )
+      if (!confirmSubmit) {
+        return
+      }
     }
 
     onSubmit({
       name: formData.name,
       description: formData.description,
       responsible: formData.responsible,
-      subsectors: subsectors.map((sub) => ({
+      subsectors: validSubsectors.map((sub) => ({
         ...sub,
         sectorId: sector?.id || "",
       })),
