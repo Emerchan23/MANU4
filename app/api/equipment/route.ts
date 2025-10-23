@@ -121,12 +121,20 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 [EQUIPMENT API] Preparando dados para inserção...');
     
+    // Usar patrimonio_number se disponível, senão usar patrimony_number (compatibilidade)
+    const patrimonioValue = body.patrimonio_number || body.patrimony_number;
+    
+    console.log('🔍 [EQUIPMENT API] Valores de patrimônio:');
+    console.log('  - patrimonio_number:', body.patrimonio_number);
+    console.log('  - patrimony_number:', body.patrimony_number);
+    console.log('  - patrimonioValue final:', patrimonioValue);
+
     // Preparar dados para inserção
     const insertData = [
       body.name,
-      body.patrimony_number || null, // patrimony
-      body.patrimony_number || null, // patrimonio_number
-      body.patrimony_number || null, // code (usando mesmo valor)
+      patrimonioValue || null, // patrimony
+      patrimonioValue || null, // patrimonio_number
+      patrimonioValue || null, // code (usando mesmo valor)
       body.model || null,
       body.brand || body.manufacturer || null, // manufacturer
       body.serial_number || null,

@@ -205,6 +205,8 @@ const createEquipment = async (req, res) => {
     console.log('🔍 [EQUIPMENT API] Valores para inserção:');
     console.log('  - patrimonioValue:', patrimonioValue);
     console.log('  - codeValue:', codeValue);
+    console.log('  - patrimonio_number original:', patrimonio_number);
+    console.log('  - patrimonio original:', patrimonio);
 
     const queryStr = `
       INSERT INTO equipment (
@@ -235,8 +237,8 @@ const createEquipment = async (req, res) => {
 
     const result = await query(queryStr, [
       name,
-      codeValue, // code (with PAT prefix) - campo obrigatório
-      patrimonioValue, // patrimonio_number
+      codeValue || null, // code (with PAT prefix)
+      patrimonioValue, // patrimonio_number - GARANTIR que não seja null
       model || null,
       serial_number || null,
       manufacturer || null,
