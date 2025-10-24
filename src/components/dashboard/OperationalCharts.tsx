@@ -58,7 +58,8 @@ export function OperationalCharts({
   const costChartData = (costAnalysis || []).map(item => ({
     name: item.sector_name,
     value: parseFloat(item.total_estimated_cost) || 0,
-    count: parseInt(item.total_maintenances) || 0,
+    count: parseInt(item.total_service_orders) || 0,
+    equipments: parseInt(item.total_equipments) || 0,
   }));
 
   // Transform company performance for bar chart

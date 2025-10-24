@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
     );
     const activeEquipment = equipmentRows[0]?.count || 0;
     
-    // Get pending maintenances count
+    // Get pending maintenances count - corrigido para usar status real do banco
     const maintenanceRows = await query(
-      'SELECT COUNT(*) as count FROM maintenance_schedules WHERE status IN ("AGENDADO", "PENDENTE")'
+      'SELECT COUNT(*) as count FROM maintenance_schedules WHERE status = "AGENDADA"'
     );
     const pendingMaintenances = maintenanceRows[0]?.count || 0;
     
@@ -54,49 +54,62 @@ export async function GET(request: NextRequest) {
       upcomingAppointments
     });
     
-    // Get monthly maintenance statistics from database - usando service_orders para dados reais
+    // Get monthly maintenance statistics from database - últimos 6 meses para criar linha conectada
     const monthlyStatsRows = await query(`
+      WITH months AS (
+        SELECT 
+          DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL n.n MONTH), '%b') as month,
+          DATE_SUB(CURDATE(), INTERVAL n.n MONTH) as month_date
+        FROM (
+          SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5
+        ) n
+      )
       SELECT 
-        DATE_FORMAT(COALESCE(so.completion_date, so.created_at), '%b') as month,
-        COUNT(DISTINCT so.id) as total_scheduled,
-        SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN 1 ELSE 0 END) as overdue,
-        SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN so.status IN ('AGENDADA', 'PENDENTE', 'SCHEDULED', 'PENDING', 'EM_ANDAMENTO', 'IN_PROGRESS') THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END) as completed_cost,
-        SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END) as overdue_cost
-      FROM service_orders so
-      GROUP BY YEAR(COALESCE(so.completion_date, so.created_at)), MONTH(COALESCE(so.completion_date, so.created_at))
-      ORDER BY COALESCE(so.completion_date, so.created_at) DESC
+        m.month,
+        COALESCE(COUNT(DISTINCT so.id), 0) as total_scheduled,
+        COALESCE(SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN 1 ELSE 0 END), 0) as overdue,
+        COALESCE(SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END), 0) as completed,
+        COALESCE(SUM(CASE WHEN so.status IN ('AGENDADA', 'PENDENTE', 'SCHEDULED', 'PENDING', 'EM_ANDAMENTO', 'IN_PROGRESS') THEN 1 ELSE 0 END), 0) as pending,
+        COALESCE(SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END), 0) as completed_cost,
+        COALESCE(SUM(CASE WHEN so.status IN ('ATRASADA', 'OVERDUE') THEN COALESCE(so.actual_cost, so.estimated_cost, 0) ELSE 0 END), 0) as overdue_cost
+      FROM months m
+      LEFT JOIN service_orders so ON 
+        YEAR(COALESCE(so.completion_date, so.created_at)) = YEAR(m.month_date) AND 
+        MONTH(COALESCE(so.completion_date, so.created_at)) = MONTH(m.month_date)
+      GROUP BY m.month, m.month_date
+      ORDER BY m.month_date ASC
     `);
 
-    // Get cost analysis by sector from database
+    // Get cost analysis by sector from database - usando service_orders para dados reais
     const costAnalysisRows = await query(`
       SELECT 
         s.name as sector_name,
-        COALESCE(SUM(ms.estimated_cost), 0) as total_estimated_cost,
-        COUNT(ms.id) as total_maintenances
+        COALESCE(SUM(so.estimated_cost), 0) as total_estimated_cost,
+        COUNT(so.id) as total_service_orders,
+        COUNT(DISTINCT e.id) as total_equipments
       FROM sectors s
-      LEFT JOIN equipment e ON e.sector_id = s.id
-      LEFT JOIN maintenance_schedules ms ON ms.equipment_id = e.id
+      LEFT JOIN equipment e ON e.sector_id = s.id AND e.is_active = 1
+      LEFT JOIN service_orders so ON so.equipment_id = e.id
       WHERE s.active = 1
       GROUP BY s.id, s.name
-      HAVING total_maintenances > 0
+      HAVING total_equipments > 0
       ORDER BY total_estimated_cost DESC
       LIMIT 10
     `);
 
-    // Get equipment performance by company from database
+    // Get equipment performance by company from database - usando service_orders
     const performanceRows = await query(`
       SELECT 
         c.name as company_name,
         ROUND(
-          (SUM(CASE WHEN ms.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END) * 100.0) / 
-          NULLIF(COUNT(ms.id), 0), 
+          (SUM(CASE WHEN so.status IN ('CONCLUIDA', 'COMPLETED') THEN 1 ELSE 0 END) * 100.0) / 
+          NULLIF(COUNT(so.id), 0), 
           0
         ) as completion_rate,
-        COUNT(ms.id) as total_schedules
+        COUNT(so.id) as total_schedules,
+        COALESCE(SUM(so.estimated_cost), 0) as total_cost
       FROM companies c
-      LEFT JOIN maintenance_schedules ms ON ms.company_id = c.id
+      LEFT JOIN service_orders so ON so.company_id = c.id
       WHERE c.active = 1
       GROUP BY c.id, c.name
       HAVING total_schedules > 0

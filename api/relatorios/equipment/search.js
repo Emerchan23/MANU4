@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { query } from '../../../../../lib/database';
+import { query } from '../../lib/database.js';
+import express from 'express';
+const router = express.Router();
 
 // Buscar equipamentos para relatórios
-export async function GET(request: NextRequest) {
+const searchEquipments = async (req, res) => {
   console.log('🔍 [EQUIPMENT SEARCH] Iniciando busca de equipamentos para relatórios...');
   
   try {
-    const { searchParams } = new URL(request.url);
-    const sector_id = searchParams.get('sector_id');
-    const start_date = searchParams.get('start_date');
-    const end_date = searchParams.get('end_date');
-    const search = searchParams.get('search');
+    const { 
+      sector_id, 
+      start_date, 
+      end_date, 
+      search 
+    } = req.query;
 
     console.log('📊 [EQUIPMENT SEARCH] Parâmetros recebidos:', {
       sector_id,
@@ -19,8 +21,8 @@ export async function GET(request: NextRequest) {
       search
     });
 
-    let whereConditions: string[] = [];
-    let queryParams: any[] = [];
+    let whereConditions = [];
+    let queryParams = [];
 
     // Filtro por setor
     if (sector_id) {
@@ -120,7 +122,7 @@ export async function GET(request: NextRequest) {
     console.log('📊 [EQUIPMENT SEARCH] Equipamentos encontrados:', rows.length);
 
     // Transformar os dados para o formato esperado pelo frontend
-    const transformedData = rows.map((equipment: any) => ({
+    const transformedData = rows.map(equipment => ({
       id: equipment.id,
       name: equipment.name,
       patrimonio_number: equipment.patrimonio_number || equipment.patrimony || equipment.code,
@@ -150,14 +152,19 @@ export async function GET(request: NextRequest) {
     }));
 
     console.log('✅ [EQUIPMENT SEARCH] Busca concluída com sucesso');
-    return NextResponse.json(transformedData);
+    res.json(transformedData);
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ [EQUIPMENT SEARCH] Erro ao buscar equipamentos:', error);
-    return NextResponse.json({
+    res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
       error: error.message
-    }, { status: 500 });
+    });
   }
-}
+};
+
+// Rota GET para buscar equipamentos
+router.get('/', searchEquipments);
+
+export default router;
