@@ -1,56 +1,41 @@
 import mysql from 'mysql2/promise';
 
-async function checkServiceOrders() {
-  const connection = await mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'hospital_maintenance'
-  });
-
+async function checkTableStructure() {
   try {
-    console.log('Conectado ao banco de dados');
+    const connection = await mysql.createConnection({
+      host: 'localhost',
+      user: 'root',
+      password: '',
+      database: 'hospital_maintenance'
+    });
     
-    // Verificar quantas ordens de serviço existem
-    const [orders] = await connection.execute('SELECT COUNT(*) as total FROM service_orders');
-    console.log(`Total de ordens de serviço no banco: ${orders[0].total}`);
+    console.log('🔍 Verificando estrutura da tabela service_orders...');
+    const [columns] = await connection.execute('DESCRIBE service_orders');
+    console.log('📋 Colunas da tabela service_orders:');
+    columns.forEach(col => {
+      console.log(`- ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Key ? col.Key : ''}`);
+    });
     
-    // Se existem ordens, mostrar algumas
-    if (orders[0].total > 0) {
-      const [allOrders] = await connection.execute(`
-        SELECT 
-          so.id,
-          so.order_number,
-          so.description,
-          so.status,
-          so.priority,
-          so.created_at,
-          e.name as equipment_name,
-          c.name as company_name
-        FROM service_orders so
-        LEFT JOIN equipment e ON so.equipment_id = e.id
-        LEFT JOIN companies c ON so.company_id = c.id
-        ORDER BY so.created_at DESC
-        LIMIT 5
-      `);
-      
-      console.log('\nÚltimas 5 ordens de serviço:');
-      allOrders.forEach(order => {
-        console.log(`ID: ${order.id}, Número: ${order.order_number}, Descrição: ${order.description}`);
-        console.log(`Status: ${order.status}, Prioridade: ${order.priority}`);
-        console.log(`Equipamento: ${order.equipment_name}, Empresa: ${order.company_name}`);
-        console.log(`Criado em: ${order.created_at}`);
-        console.log('---');
-      });
-    } else {
-      console.log('Nenhuma ordem de serviço encontrada no banco de dados');
+    console.log('\n🔍 Verificando dados de exemplo...');
+    const [rows] = await connection.execute('SELECT * FROM service_orders LIMIT 3');
+    console.log('📊 Quantidade de registros encontrados:', rows.length);
+    
+    if (rows.length > 0) {
+      console.log('📊 Primeiro registro:', JSON.stringify(rows[0], null, 2));
     }
     
-  } catch (error) {
-    console.error('Erro ao verificar ordens de serviço:', error);
-  } finally {
+    console.log('\n🔍 Verificando empresas...');
+    const [companies] = await connection.execute('SELECT id, name FROM companies LIMIT 5');
+    console.log('🏢 Empresas encontradas:', companies.length);
+    companies.forEach(company => {
+      console.log(`- ID: ${company.id}, Nome: ${company.name}`);
+    });
+    
     await connection.end();
+    console.log('✅ Verificação concluída');
+  } catch (error) {
+    console.error('❌ Erro:', error.message);
   }
 }
 
-checkServiceOrders();
+checkTableStructure();

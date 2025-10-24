@@ -94,7 +94,7 @@ export async function POST(
         so.order_number,
         so.description,
         so.status,
-        so.actual_cost as cost,
+        so.cost,
         so.created_at,
         so.completion_date,
         e.name as equipment_name,
