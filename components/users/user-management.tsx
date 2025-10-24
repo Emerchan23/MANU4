@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
+
 import { UserPlusIcon, PencilIcon, TrashIcon, UserIcon, ShieldCheckIcon } from "@heroicons/react/24/outline"
 import type { User, UserRole } from "@/types/users"
 import {
@@ -34,13 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-const AVAILABLE_SECTORS = [
-  { id: "1", name: "UTI" },
-  { id: "2", name: "Emergencia" },
-  { id: "3", name: "Centro Cirurgico" },
-  { id: "4", name: "Radiologia" },
-  { id: "5", name: "Laboratorio" },
-]
+
 
 const USER_ROLES: { value: UserRole; label: string; description: string }[] = [
   { value: "ADMIN", label: "Administrador", description: "Acesso total ao sistema" },
@@ -56,7 +50,6 @@ interface UserFormData {
   password: string
   newPassword?: string
   role: UserRole
-  allowedSectors: string[]
   isActive: boolean
 }
 
@@ -85,7 +78,6 @@ export function UserManagement() {
     username: "",
     password: "",
     role: "USUARIO",
-    allowedSectors: [],
     isActive: true,
   })
 
@@ -121,7 +113,6 @@ export function UserManagement() {
       password: "",
       newPassword: "",
       role: "USUARIO",
-      allowedSectors: [],
       isActive: true,
     })
     setEditingUser(null)
@@ -137,7 +128,6 @@ export function UserManagement() {
         password: "",
         newPassword: "",
         role: user.role,
-        allowedSectors: user.allowedSectors,
         isActive: user.isActive,
       })
     } else {
@@ -151,17 +141,26 @@ export function UserManagement() {
     resetForm()
   }
 
-  const handleSectorChange = (sectorId: string, checked: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      allowedSectors: checked
-        ? [...prev.allowedSectors, sectorId]
-        : prev.allowedSectors.filter((id) => id !== sectorId),
-    }))
-  }
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Debug: Log form data before submission
+    console.log('=== FORM SUBMISSION DEBUG ===')
+    console.log('Form Data:', formData)
+    console.log('Editing User:', editingUser)
+
+    // Validate required fields
+    if (!formData.name || !formData.email || !formData.username) {
+      alert('Por favor, preencha todos os campos obrigatórios (Nome, Email, Username)')
+      return
+    }
+
+    if (!editingUser && !formData.password) {
+      alert('Por favor, defina uma senha para o novo usuário')
+      return
+    }
 
     try {
       if (editingUser) {
@@ -179,6 +178,8 @@ export function UserManagement() {
         // Remove newPassword field as it's not needed in the API
         delete updateData.newPassword
         
+        console.log('Sending UPDATE request with data:', updateData)
+        
         const response = await fetch(`/api/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
@@ -190,31 +191,48 @@ export function UserManagement() {
 
         if (response.ok) {
           const updatedUser = await response.json()
+          console.log('User updated successfully:', updatedUser)
           setUsers((prev) =>
             prev.map((user) => (user.id === editingUser.id ? updatedUser : user))
           )
         } else {
           const error = await response.json()
+          console.error('Update error:', error)
           alert(`Erro ao atualizar usuario: ${error.error || error.message}`)
           return
         }
       } else {
-        // Create new user
+        // Create new user - ensure all required fields are present
+        const createData = {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          username: formData.username.trim(),
+          password: formData.password.trim(),
+          role: formData.role,
+          isActive: formData.isActive
+        }
+        
+        console.log('Sending CREATE request with data:', createData)
+        
         const response = await fetch('/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'include', // Include cookies for session-based auth
-          body: JSON.stringify(formData)
+          body: JSON.stringify(createData)
         })
 
+        console.log('Response status:', response.status)
+        
         if (response.ok) {
           const newUser = await response.json()
+          console.log('User created successfully:', newUser)
           setUsers((prev) => [...prev, newUser])
         } else {
           const error = await response.json()
-          alert(`Erro ao criar usuario: ${error.message}`)
+          console.error('Create error:', error)
+          alert(`Erro ao criar usuario: ${error.error || error.message || 'Erro desconhecido'}`)
           return
         }
       }
@@ -447,33 +465,7 @@ export function UserManagement() {
                       </Select>
                     </div>
 
-                    {formData.role !== "ADMIN" && (
-                      <div className="space-y-3">
-                        <Label>Setores Permitidos</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {AVAILABLE_SECTORS.map((sector) => (
-                            <div key={sector.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`sector-${sector.id}`}
-                                checked={formData.allowedSectors.includes(sector.id)}
-                                onCheckedChange={(checked) => handleSectorChange(sector.id, checked as boolean)}
-                              />
-                              <Label htmlFor={`sector-${sector.id}`} className="text-sm">
-                                {sector.name}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                        {(formData.role as string) !== "ADMIN" && formData.allowedSectors.length === 0 && (
-                          <Alert>
-                            <ShieldCheckIcon className="h-4 w-4" />
-                            <AlertDescription>
-                              Selecione pelo menos um setor para usuarios nao-administradores.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </div>
-                    )}
+
                   </div>
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={handleCloseDialog}>
@@ -493,7 +485,7 @@ export function UserManagement() {
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Perfil</TableHead>
-                <TableHead>Setores</TableHead>
+                <TableHead>Nível de Acesso</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Acoes</TableHead>
               </TableRow>
@@ -525,22 +517,9 @@ export function UserManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.role === "ADMIN" ? (
-                        <Badge variant="outline">Todos</Badge>
-                      ) : user.allowedSectors.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {user.allowedSectors.map((sectorId) => {
-                            const sector = AVAILABLE_SECTORS.find((s) => s.id === sectorId)
-                            return sector ? (
-                              <Badge key={sectorId} variant="outline" className="text-xs">
-                                {sector.name}
-                              </Badge>
-                            ) : null
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">Nenhum</span>
-                      )}
+                      <Badge variant="outline">
+                        {user.role === "ADMIN" ? "Acesso Total" : "Acesso Limitado"}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={user.isActive ? "default" : "secondary"}>

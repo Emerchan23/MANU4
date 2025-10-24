@@ -5,7 +5,11 @@ import { query } from '../lib/database.js'
 
 // Password hashing function using bcrypt (compatible with login API)
 const hashPassword = async (password) => {
-  return await bcrypt.hash(password, 10)
+  console.log('hashPassword - Entrada:', password, 'Tipo:', typeof password, 'Length:', password.length);
+  const saltRounds = 10;
+  const hash = await bcrypt.hash(password, saltRounds);
+  console.log('hashPassword - Hash gerado:', hash);
+  return hash;
 }
 
 const router = express.Router()
@@ -24,7 +28,28 @@ router.get("/", async (req, res) => {
     // Transform data to frontend format
     const transformedUsers = users.map(user => {
       // Map database role to frontend role
-      const frontendRole = user.is_admin ? 'ADMIN' : (user.role ? user.role.toUpperCase() : 'USUARIO')
+      let frontendRole = 'USUARIO' // default
+      
+      if (user.is_admin) {
+        frontendRole = 'ADMIN'
+      } else if (user.role) {
+        // Normalize role values - convert database role to frontend role
+        const roleUpper = user.role.toUpperCase()
+        // console.log(`🔍 Transformando role para usuário ${user.username}: "${user.role}" -> "${roleUpper}"`);
+        if (roleUpper === 'USER' || roleUpper === 'USUARIO') {
+          frontendRole = 'USUARIO'
+        } else if (roleUpper === 'ADMIN' || roleUpper === 'ADMINISTRADOR') {
+          frontendRole = 'ADMIN'
+        } else if (roleUpper === 'GESTOR') {
+          frontendRole = 'GESTOR'
+        } else if (roleUpper === 'TECNICO') {
+          frontendRole = 'TECNICO'
+        } else {
+          // console.log(`⚠️ Role desconhecido para ${user.username}: "${user.role}", usando USUARIO como fallback`)
+          frontendRole = 'USUARIO' // fallback for any unknown role
+        }
+        // console.log(`✅ Role final para ${user.username}: "${frontendRole}"`)
+      }
       
       return {
         id: user.id,
@@ -32,7 +57,6 @@ router.get("/", async (req, res) => {
         name: user.name,
         email: user.email,
         role: frontendRole,
-        allowedSectors: [],
         isActive: Boolean(user.is_active),
         sector_name: user.sector_name,
         created_at: user.created_at
@@ -81,7 +105,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     // Map frontend fields to database fields
-    const { username, password, name, email, role, allowedSectors, sector_id, permissions } = req.body
+    const { username, password, name, email, role, sector_id, permissions } = req.body
     
     if (!username || !password || !name) {
       return res.status(400).json({ error: "Username, senha e nome são obrigatórios" })
@@ -101,17 +125,26 @@ router.post("/", async (req, res) => {
       }
     }
 
+    console.log('Criando usuário:', username, 'com senha:', password);
     const hashedPassword = await hashPassword(password)
+    console.log('Hash gerado:', hashedPassword);
     
     // Determine if user is admin
     const isAdmin = role === 'ADMIN' ? 1 : 0
+    
+    // Mapear role para os valores aceitos pelo banco
+    let dbRole = 'user'; // valor padrão
+    if (role === 'ADMIN') dbRole = 'admin';
+    else if (role === 'TECHNICIAN') dbRole = 'technician';
+    else if (role === 'MANAGER') dbRole = 'manager';
+    else if (role === 'USER' || role === 'USUARIO') dbRole = 'user';
 
     const result = await query(
       `
-      INSERT INTO users (username, password, full_name, email, role, is_admin, sector_id, is_active)
+      INSERT INTO users (username, password_hash, full_name, email, role, is_admin, sector_id, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      [username, hashedPassword, name, email || null, role, isAdmin, sector_id || null, 1],
+      [username, hashedPassword, name, email || null, dbRole, isAdmin, sector_id || null, 1],
     )
 
     // Return user data in frontend format
@@ -121,7 +154,6 @@ router.post("/", async (req, res) => {
       name,
       email: email || null,
       role: role,
-      allowedSectors: allowedSectors || [],
       isActive: true
     }
 
@@ -136,12 +168,12 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params
-    const { name, email, role, allowedSectors, sector_id, permissions, isActive, is_active, password } = req.body
+    const { name, email, role, sector_id, permissions, isActive, is_active, password } = req.body
 
-    console.log('🔧 PUT /api/users/:id - Dados recebidos:', {
-      id,
-      body: req.body
-    });
+    // console.log('🔧 PUT /api/users/:id - Dados recebidos:', {
+    //   id,
+    //   body: req.body
+    // });
 
     // Authentication removed - direct access allowed
 
@@ -210,8 +242,8 @@ router.put("/:id", async (req, res) => {
     updateFields.push("updated_at = CURRENT_TIMESTAMP")
     updateValues.push(id)
 
-    console.log('🔧 Query SQL:', `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`);
-    console.log('🔧 Valores:', updateValues);
+    // console.log('🔧 Query SQL:', `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`);
+    // console.log('🔧 Valores:', updateValues);
 
     await query(
       `
@@ -242,7 +274,7 @@ router.put("/:id", async (req, res) => {
         name: user.name,
         email: user.email,
         role: frontendRole,
-        allowedSectors: [],
+
         isActive: Boolean(user.is_active),
         sector_name: user.sector_name,
         created_at: user.created_at

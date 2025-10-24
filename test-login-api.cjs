@@ -1,80 +1,52 @@
-// Usar fetch nativo do Node.js 18+
+const { default: fetch } = require('node-fetch');
 
 async function testLoginAPI() {
-  console.log('🔐 Testando endpoint de login...\n');
+  console.log('🧪 Testando API de Login...\n');
 
-  const baseURL = 'http://localhost:3000';
-  const loginEndpoint = `${baseURL}/api/auth/login`;
-
-  // Dados de teste
-  const testCredentials = [
-    {
-      name: 'Admin com username',
-      data: { username: 'admin', password: 'admin123' }
-    },
-    {
-      name: 'Admin com email',
-      data: { username: 'admin@sistema.com', password: 'admin123' }
-    },
-    {
-      name: 'Credenciais inválidas',
-      data: { username: 'admin', password: 'senhaerrada' }
-    }
+  const testUsers = [
+    { username: 'admin', password: 'admin123', expected: 'ADMIN' },
+    { username: 'gestor.teste', password: 'gestor123', expected: 'USER' },
+    { username: 'tecnico.teste', password: 'tecnico123', expected: 'USER' },
+    { username: 'usuario.teste', password: 'usuario123', expected: 'USER' }
   ];
 
-  for (const test of testCredentials) {
-    console.log(`\n📋 Teste: ${test.name}`);
-    console.log(`📤 Enviando: ${JSON.stringify(test.data)}`);
-
+  for (const testUser of testUsers) {
+    console.log(`\n🔐 Testando login: ${testUser.username}`);
+    
     try {
-      const response = await fetch(loginEndpoint, {
+      const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(test.data)
+        body: JSON.stringify({
+          username: testUser.username,
+          password: testUser.password
+        })
       });
 
-      console.log(`📊 Status: ${response.status} ${response.statusText}`);
-
-      const responseData = await response.text();
-      console.log(`📥 Resposta: ${responseData}`);
-
-      // Verificar cookies se login foi bem-sucedido
-      if (response.status === 200) {
-        const cookies = response.headers.get('set-cookie');
-        if (cookies) {
-          console.log(`🍪 Cookies definidos: ${cookies}`);
-        } else {
-          console.log('⚠️  Nenhum cookie foi definido');
-        }
+      const data = await response.json();
+      
+      console.log(`Status: ${response.status}`);
+      console.log(`Response:`, data);
+      
+      if (response.ok && data.success) {
+        console.log(`✅ LOGIN SUCESSO - ${testUser.username}`);
+        console.log(`   Nome: ${data.user.name}`);
+        console.log(`   Role: ${data.user.role}`);
+        console.log(`   Admin: ${data.user.isAdmin ? 'SIM' : 'NÃO'}`);
+      } else {
+        console.log(`❌ LOGIN FALHOU - ${testUser.username}`);
+        console.log(`   Erro: ${data.error}`);
       }
-
+      
     } catch (error) {
-      console.log(`❌ Erro na requisição: ${error.message}`);
+      console.log(`❌ ERRO DE CONEXÃO - ${testUser.username}`);
+      console.log(`   Erro: ${error.message}`);
     }
-
-    console.log('─'.repeat(50));
   }
 
-  // Teste adicional: verificar se o endpoint existe
-  console.log('\n🔍 Verificando se o endpoint existe...');
-  try {
-    const response = await fetch(loginEndpoint, {
-      method: 'GET'
-    });
-    console.log(`📊 GET Status: ${response.status} ${response.statusText}`);
-    
-    if (response.status === 405) {
-      console.log('✅ Endpoint existe (Method Not Allowed é esperado para GET)');
-    } else {
-      const text = await response.text();
-      console.log(`📥 Resposta GET: ${text}`);
-    }
-  } catch (error) {
-    console.log(`❌ Erro ao verificar endpoint: ${error.message}`);
-  }
+  console.log('\n🏁 Teste concluído!');
 }
 
-// Executar teste
-testLoginAPI().catch(console.error);
+testLoginAPI();

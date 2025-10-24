@@ -227,9 +227,14 @@ export async function POST(
 
   } catch (error) {
     console.error('💥 ERRO CRÍTICO ao atualizar ordem de serviço:', error)
-    console.error('Stack trace:', error.stack)
+    
+    // Verificar se error é uma instância de Error para acessar stack e message
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    const errorStack = error instanceof Error ? error.stack : String(error)
+    
+    console.error('Stack trace:', errorStack)
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor', details: error.message },
+      { success: false, error: 'Erro interno do servidor', details: errorMessage },
       { status: 500 }
     )
   }

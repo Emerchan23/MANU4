@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -39,11 +39,18 @@ function getGreeting(): string {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const router = useRouter()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
-  
+  const router = useRouter()
   const [greeting, setGreeting] = useState<string>("")
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Debug logs para entender o problema
+  console.log('🔍 Header - Estado atual:', {
+    user: user ? { name: user.name, role: user.role } : null,
+    isAuthenticated,
+    isAdmin
+  });
   
   // Debug logs
   useEffect(() => {

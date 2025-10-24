@@ -2,66 +2,58 @@ export interface NavigationItem {
   name: string
   href: string
   icon: any
-  requiredRoles?: string[]
-  requiredPermissions?: string[]
+  adminOnly?: boolean
 }
 
-export const getFilteredNavigation = (userRole: string, permissions: any) => {
+export const getFilteredNavigation = (userRole: string, isAdmin: boolean) => {
   const allNavigation: NavigationItem[] = [
     {
       name: "Dashboard",
       href: "/",
       icon: "HomeIcon",
-      requiredRoles: ["admin", "gestor", "tecnico"],
     },
     {
       name: "Equipamentos",
       href: "/equipamentos",
       icon: "WrenchScrewdriverIcon",
-      requiredRoles: ["admin", "gestor"],
     },
     {
       name: "Ordens de Serviço",
       href: "/ordens-servico",
       icon: "ClipboardDocumentListIcon",
-      requiredRoles: ["admin", "gestor", "tecnico"],
     },
     {
       name: "Agendamentos",
       href: "/agendamentos",
       icon: "CalendarIcon",
-      requiredRoles: ["admin", "gestor", "tecnico"],
     },
     {
       name: "Empresas",
       href: "/empresas",
       icon: "BuildingOfficeIcon",
-      requiredRoles: ["admin", "gestor"],
+    },
+    {
+      name: "Setores",
+      href: "/setores",
+      icon: "RectangleGroupIcon",
     },
     {
       name: "Relatórios",
       href: "/relatorios",
       icon: "DocumentChartBarIcon",
-      requiredRoles: ["admin", "gestor", "tecnico"],
     },
     {
       name: "Configurações",
       href: "/configuracoes",
       icon: "CogIcon",
-      requiredRoles: ["admin"],
-      requiredPermissions: ["configuracoes"],
+      adminOnly: true,
     },
   ]
 
   return allNavigation.filter((item) => {
-    // Check role-based access
-    if (item.requiredRoles && !item.requiredRoles.includes(userRole)) {
+    // Se o item é apenas para admin, verificar se o usuário é admin
+    if (item.adminOnly && !isAdmin) {
       return false
-    }
-
-    // Check permission-based access
-    if (item.requiredPermissions) {
-      return item.requiredPermissions.every((permission) => permissions[permission])
     }
 
     return true

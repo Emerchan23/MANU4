@@ -6,7 +6,6 @@ export interface User {
   name: string
   email: string
   role: UserRole
-  allowedSectors: string[]
   isActive: boolean
   sector_name?: string
   created_at?: string

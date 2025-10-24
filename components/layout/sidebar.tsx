@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-// import { getCurrentUser, getUserPermissions } from "@/lib/auth-client" // Authentication removed
+import { useAuth } from "@/hooks/useAuth"
 import { getFilteredNavigation } from "@/lib/navigation"
 
 const iconMap = {
@@ -41,16 +41,24 @@ interface SidebarProps {
 
 export function Sidebar({ open, onOpenChange }: SidebarProps) {
   const pathname = usePathname()
-  // const user = getCurrentUser() // Authentication removed
-  const user = { name: "Usuário", role: "admin" } // Authentication removed - default user
+  const { user, isAuthenticated, isAdmin } = useAuth()
 
-  // const permissions = getUserPermissions(user) // Authentication removed
-  const permissions = {
-    relatorios: true,
-    configuracoes: true
-  } // Authentication removed - admin has all permissions
+  // Debug logs para entender o problema
+  console.log('🔍 Sidebar - Estado atual:', {
+    user: user ? { name: user.name, role: user.role } : null,
+    isAuthenticated,
+    isAdmin,
+    pathname
+  });
 
-  const navigation = getFilteredNavigation(user.role, permissions).map((item) => ({
+  // Se não estiver autenticado, não mostrar navegação
+  if (!isAuthenticated || !user) {
+    console.log('❌ Sidebar - Não renderizando: usuário não autenticado ou dados ausentes');
+    return null
+  }
+
+  console.log('✅ Sidebar - Renderizando sidebar para usuário autenticado');
+  const navigation = getFilteredNavigation(user.role, isAdmin).map((item) => ({
     ...item,
     icon: iconMap[item.icon as keyof typeof iconMap] || HomeIcon,
   }))

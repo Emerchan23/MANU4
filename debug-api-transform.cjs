@@ -51,7 +51,7 @@ async function debugApiTransform() {
         name: user.name,
         email: user.email, // Use email from database
         role: frontendRole,
-        allowedSectors: permissions.allowedSectors || [],
+
         isActive: true, // Active column doesn't exist, assume true
         sector_name: user.sector_name,
         created_at: user.created_at
