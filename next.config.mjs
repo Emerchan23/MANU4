@@ -9,6 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  trailingSlash: true,
   experimental: {
     serverComponentsExternalPackages: ['mysql2'],
   },

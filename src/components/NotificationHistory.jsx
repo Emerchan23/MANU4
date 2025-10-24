@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, Search, Filter, Calendar, Eye, EyeOff, Trash2, RefreshCw, Download } from 'lucide-react';
+import { History, Search, Filter, Calendar, Eye, EyeOff, Trash2, RefreshCw, Download, X } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 
 const NotificationHistory = ({ userId = 1 }) => {

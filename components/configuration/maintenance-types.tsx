@@ -463,7 +463,7 @@ export function MaintenanceTypes() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o tipo de manutenção "{typeToDelete?.name}"? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o tipo de manutenção &quot;{typeToDelete?.name}&quot;? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

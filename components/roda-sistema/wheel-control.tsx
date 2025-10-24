@@ -50,6 +50,11 @@ export default function WheelControl({ wheelId = 'wheel-1', onStateChange }: Whe
 
   // Animation loop for wheel rotation
   useEffect(() => {
+    // Check if we're in the browser environment
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (!wheelState.isActive) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -98,13 +103,17 @@ export default function WheelControl({ wheelId = 'wheel-1', onStateChange }: Whe
         return newState;
       });
 
-      animationRef.current = requestAnimationFrame(animate);
+      if (typeof window !== 'undefined') {
+        animationRef.current = requestAnimationFrame(animate);
+      }
     };
 
-    animationRef.current = requestAnimationFrame(animate);
+    if (typeof window !== 'undefined') {
+      animationRef.current = requestAnimationFrame(animate);
+    }
 
     return () => {
-      if (animationRef.current) {
+      if (animationRef.current && typeof window !== 'undefined') {
         cancelAnimationFrame(animationRef.current);
       }
     };

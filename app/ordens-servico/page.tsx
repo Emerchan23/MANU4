@@ -1471,7 +1471,7 @@ export default function ServiceOrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a ordem de serviço "{orderToDelete?.order_number}"?
+              Tem certeza que deseja excluir a ordem de serviço &quot;{orderToDelete?.order_number}&quot;?
               Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1496,8 +1496,8 @@ export default function ServiceOrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja cancelar a ordem de serviço "{orderToCancel?.order_number}"?
-              Esta ação alterará o status da ordem para "CANCELADA".
+              Tem certeza que deseja cancelar a ordem de serviço &quot;{orderToCancel?.order_number}&quot;?
+              Esta ação alterará o status da ordem para &quot;CANCELADA&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

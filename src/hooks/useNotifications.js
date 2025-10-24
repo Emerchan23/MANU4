@@ -73,7 +73,7 @@ export const useNotifications = (userId = 1) => {
       console.error('Erro ao conectar WebSocket:', error);
       setError('Falha ao conectar WebSocket');
     }
-  }, [userId]);
+  }, [userId, handleWebSocketMessage]);
 
   // Processar mensagens do WebSocket
   const handleWebSocketMessage = useCallback((data) => {

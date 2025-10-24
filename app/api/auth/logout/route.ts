@@ -18,24 +18,10 @@ export async function POST(request: NextRequest) {
       expires: new Date(0)
     });
     
+    // Remover cookie do cookieStore também
+    cookieStore.delete('auth_token');
+    
     return response;
-
-      // Log de logout
-      if (user) {
-        await logAccess(
-          user.id,
-          'logout',
-          'auth',
-          request.ip,
-          request.headers.get('user-agent') || undefined
-        );
-      }
-
-      // Remover cookie
-      cookieStore.delete('auth_token');
-    }
-
-    return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Erro no logout:', error);

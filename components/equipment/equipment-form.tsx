@@ -291,7 +291,7 @@ export default function EquipmentForm({ equipment, onSave, onCancel }: Equipment
                   />
                 </div>
                 <p className="text-xs text-gray-500">
-                  Digite apenas números (máximo 6 dígitos). O prefixo "PAT" será adicionado automaticamente.
+                  Digite apenas números (máximo 6 dígitos). O prefixo &quot;PAT&quot; será adicionado automaticamente.
                 </p>
               </div>
               

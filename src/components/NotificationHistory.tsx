@@ -1,5 +1,5 @@
 // Componente de histórico de notificações
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   History, 
   Search, 
@@ -82,7 +82,7 @@ export function NotificationHistory({ userId, token }: NotificationHistoryProps)
   const [showStats, setShowStats] = useState(false);
 
   // Carregar notificações
-  const loadNotifications = async (page = 1, newFilters = filters) => {
+  const loadNotifications = useCallback(async (page = 1, newFilters = filters) => {
     setLoading(true);
     setError(null);
 
@@ -122,10 +122,10 @@ export function NotificationHistory({ userId, token }: NotificationHistoryProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, pagination.limit, searchTerm, token]);
 
   // Carregar estatísticas
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const response = await fetch('/api/notifications/stats', {
         headers: {
@@ -141,7 +141,7 @@ export function NotificationHistory({ userId, token }: NotificationHistoryProps)
     } catch (err) {
       console.error('Erro ao carregar estatísticas:', err);
     }
-  };
+  }, [token]);
 
   // Marcar como lida
   const markAsRead = async (notificationIds: number[]) => {
@@ -317,7 +317,7 @@ export function NotificationHistory({ userId, token }: NotificationHistoryProps)
   useEffect(() => {
     loadNotifications();
     loadStats();
-  }, []);
+  }, [loadNotifications, loadStats]);
 
   return (
     <div className="p-6 space-y-6">

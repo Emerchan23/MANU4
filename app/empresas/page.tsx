@@ -150,7 +150,7 @@ export default function EmpresasPage() {
                     Nenhuma empresa encontrada
                   </h3>
                   <p className="text-gray-600 mb-4">
-                    Não encontramos empresas que correspondam à sua busca "{searchTerm}".
+                    Não encontramos empresas que correspondam à sua busca &quot;{searchTerm}&quot;.
                   </p>
                   <Button
                     variant="outline"

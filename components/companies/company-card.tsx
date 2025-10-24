@@ -98,7 +98,7 @@ export function CompanyCard({ company, onDelete }: CompanyCardProps) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Tem certeza que deseja excluir a empresa "{company.name}"? 
+                    Tem certeza que deseja excluir a empresa &quot;{company.name}&quot;? 
                     Esta ação não pode ser desfeita.
                   </AlertDialogDescription>
                 </AlertDialogHeader>

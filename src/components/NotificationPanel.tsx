@@ -1,6 +1,6 @@
 "use client"
 // Painel principal de notificações
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Settings, Filter, MoreVertical, X, Check, CheckCheck, Trash2 } from 'lucide-react';
 import { useNotificationWebSocket } from '../../lib/websocket-client';
 import { NotificationItem } from './NotificationItem';
@@ -57,7 +57,7 @@ export function NotificationPanel({ userId, token, isOpen, onClose }: Notificati
   } = useNotificationWebSocket(userId, token);
 
   // Carregar notificações da API
-  const loadNotifications = async (pageNum: number = 1, resetList: boolean = true) => {
+  const loadNotifications = useCallback(async (pageNum: number = 1, resetList: boolean = true) => {
     if (loading) return;
     
     setLoading(true);
@@ -97,7 +97,7 @@ export function NotificationPanel({ userId, token, isOpen, onClose }: Notificati
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, filters, token]);
 
   // Marcar notificação como lida
   const handleMarkAsRead = async (notificationId: number) => {
@@ -218,7 +218,7 @@ export function NotificationPanel({ userId, token, isOpen, onClose }: Notificati
     if (isOpen) {
       loadNotifications();
     }
-  }, [isOpen]);
+  }, [isOpen, loadNotifications]);
 
   useEffect(() => {
     // Adicionar notificações do WebSocket à lista
@@ -231,7 +231,7 @@ export function NotificationPanel({ userId, token, isOpen, onClose }: Notificati
         setNotifications(prev => [...newNotifications, ...prev]);
       }
     }
-  }, [wsNotifications]);
+  }, [wsNotifications, notifications]);
 
   if (!isOpen) return null;
 

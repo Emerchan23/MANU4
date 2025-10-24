@@ -465,7 +465,7 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o equipamento "{equipmentToDelete?.name}"?
+              Tem certeza que deseja excluir o equipamento &quot;{equipmentToDelete?.name}&quot;?
               Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
             </AlertDialogDescription>
           </AlertDialogHeader>

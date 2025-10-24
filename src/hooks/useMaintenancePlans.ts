@@ -221,7 +221,7 @@ export function useMaintenancePlans(initialFilters?: MaintenancePlanFilters): Us
   // Load initial data
   useEffect(() => {
     fetchPlans()
-  }, [])
+  }, [fetchPlans])
 
   return {
     plans,

@@ -267,7 +267,7 @@ export function TemplateList({
                           <AlertDialogHeader>
                             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Tem certeza que deseja excluir o template "{template.name}"? 
+                              Tem certeza que deseja excluir o template &quot;{template.name}&quot;? 
                               Esta ação não pode ser desfeita.
                             </AlertDialogDescription>
                           </AlertDialogHeader>

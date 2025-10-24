@@ -56,7 +56,7 @@ export function ConfirmationModal({
           <div className="text-sm text-gray-600">
             <p>Esta ação irá:</p>
             <ul className="list-disc list-inside mt-2 space-y-1 text-xs">
-              <li>Alterar o status para "CONCLUÍDA"</li>
+              <li>Alterar o status para &quot;CONCLUÍDA&quot;</li>
               <li>Registrar a data e hora de conclusão</li>
               <li>Remover o botão de conclusão da interface</li>
             </ul>

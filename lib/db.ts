@@ -27,6 +27,28 @@ pool.getConnection()
     console.error('❌ Erro ao criar pool de conexões:', err.message);
   });
 
+// Função para executar queries
+export async function query(sql: string, params: any[] = []) {
+  // Só executar no servidor (Node.js), não no browser
+  if (typeof window !== 'undefined') {
+    throw new Error('Database queries are not allowed on the client side');
+  }
+  
+  try {
+    console.log('🔍 [DB] SQL:', sql);
+    console.log('🔍 [DB] Parâmetros:', params);
+    
+    const [results] = await pool.execute(sql, params);
+    console.log('✅ [DB] Resultado:', results);
+    return results;
+  } catch (error) {
+    console.error('❌ [DB] Erro:', error);
+    console.error('❌ [DB] SQL:', sql);
+    console.error('❌ [DB] Parâmetros:', params);
+    throw error;
+  }
+}
+
 // Função para criar conexão individual
 export async function createConnection() {
   return await mysql.createConnection(dbConfig);

@@ -1,6 +1,6 @@
 "use client"
 // Componente de configurações de notificações
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Settings, 
   Bell, 
@@ -74,7 +74,7 @@ export function NotificationSettings({ userId, token }: NotificationSettingsProp
   ];
 
   // Carregar configurações
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -98,7 +98,7 @@ export function NotificationSettings({ userId, token }: NotificationSettingsProp
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   // Salvar configurações
   const saveSettings = async () => {
@@ -230,7 +230,7 @@ export function NotificationSettings({ userId, token }: NotificationSettingsProp
   useEffect(() => {
     loadSettings();
     checkPushSupport();
-  }, []);
+  }, [loadSettings]);
 
   if (loading) {
     return (
@@ -444,7 +444,7 @@ export function NotificationSettings({ userId, token }: NotificationSettingsProp
         <h3 className="font-medium text-blue-900 mb-2">Informações Importantes</h3>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• As notificações push funcionam apenas quando o navegador está aberto</li>
-          <li>• As configurações são salvas automaticamente quando você clica em "Salvar"</li>
+          <li>• As configurações são salvas automaticamente quando você clica em &quot;Salvar&quot;</li>
           <li>• Você pode desabilitar notificações específicas a qualquer momento</li>
           <li>• As notificações por email são enviadas para o endereço cadastrado em seu perfil</li>
         </ul>

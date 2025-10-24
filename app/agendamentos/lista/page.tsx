@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMaintenanceSchedules } from '@/src/hooks/useMaintenanceSchedules'
 import { MaintenanceScheduleFilters, ScheduleStatus, MaintenancePriority } from '@/types/maintenance-scheduling'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,7 +32,6 @@ import {
   Repeat
 } from 'lucide-react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -46,10 +45,9 @@ import {
 } from "@/components/ui/alert-dialog"
 
 
-export default function AgendamentosListaPage() {
-  const searchParams = useSearchParams()
+function AgendamentosListaPage() {
   const [filters, setFilters] = useState<MaintenanceScheduleFilters>({
-    status: searchParams.get('status') as ScheduleStatus || undefined,
+    status: undefined,
     page: 1,
     limit: 20
   })
@@ -82,10 +80,10 @@ export default function AgendamentosListaPage() {
 
   useEffect(() => {
     fetchSchedules(filters)
-  }, [filters])
+  }, [filters, fetchSchedules])
 
   // Função para buscar informações de recorrência dos agendamentos
-  const fetchRecurrenceInfo = async (scheduleId: string) => {
+  const fetchRecurrenceInfo = useCallback(async (scheduleId: string) => {
     try {
       console.log(`🔍 Buscando informações de recorrência para agendamento ID: ${scheduleId}`)
       const response = await fetch(`/api/agendamentos/${scheduleId}/recurrence-info`)
@@ -110,7 +108,7 @@ export default function AgendamentosListaPage() {
     } catch (error) {
       console.error(`❌ Erro ao buscar informações de recorrência para ID ${scheduleId}:`, error)
     }
-  }
+  }, [])
 
   // Buscar informações de recorrência para todos os agendamentos quando a lista carrega
   useEffect(() => {
@@ -125,7 +123,7 @@ export default function AgendamentosListaPage() {
         }
       })
     }
-  }, [schedules])
+  }, [schedules, scheduleRecurrenceInfo, fetchRecurrenceInfo])
 
   // Função para filtrar agendamentos baseado no termo de busca
   useEffect(() => {
@@ -602,7 +600,7 @@ export default function AgendamentosListaPage() {
           </div>
           {searchTerm && (
             <p className="text-sm text-gray-500 mt-2">
-              Buscando por: <span className="font-medium">"{searchTerm}"</span>
+              Buscando por: <span className="font-medium">&quot;{searchTerm}&quot;</span>
               {filteredSchedules.length === 0 && " - Nenhum resultado encontrado"}
             </p>
           )}
@@ -1083,7 +1081,7 @@ export default function AgendamentosListaPage() {
                     Atenção: Este é um agendamento recorrente!
                   </p>
                   <p>
-                    O agendamento "{scheduleToDelete?.equipment_name}" possui{' '}
+                    O agendamento &quot;{scheduleToDelete?.equipment_name}&quot; possui{' '}
                     <strong>{scheduleRecurrenceInfo[scheduleToDelete?.id]?.recurringCount} agendamentos recorrentes</strong> vinculados.
                   </p>
                   <p className="text-red-600 font-medium">
@@ -1096,7 +1094,7 @@ export default function AgendamentosListaPage() {
                 </div>
               ) : (
                 <>
-                  Tem certeza que deseja excluir o agendamento "{scheduleToDelete?.equipment_name}"?
+                  Tem certeza que deseja excluir o agendamento &quot;{scheduleToDelete?.equipment_name}&quot;?
                   Esta ação não pode ser desfeita e todos os dados relacionados serão perdidos.
                 </>
               )}
@@ -1122,3 +1120,5 @@ export default function AgendamentosListaPage() {
     </MainLayout>
   )
 }
+
+export default AgendamentosListaPage;

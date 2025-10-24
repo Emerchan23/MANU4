@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, X, Check, AlertTriangle, Clock, Wrench, CheckCircle } from 'lucide-react';
 
 interface Notification {
@@ -51,7 +51,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   }>({});
 
   // Buscar notificações
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -76,10 +76,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, filter.type, filter.priority, filter.read, maxItems]);
 
   // Buscar estatísticas
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (userId) params.append('user_id', userId.toString());
@@ -93,7 +93,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);
     }
-  };
+  }, [userId]);
 
   // Marcar como lida
   const markAsRead = async (notificationId: number) => {
@@ -164,7 +164,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   useEffect(() => {
     fetchNotifications();
     fetchStats();
-  }, [userId, filter, maxItems]);
+  }, [userId, filter, maxItems, fetchNotifications, fetchStats]);
 
   // Ícone baseado no tipo
   const getTypeIcon = (type: string) => {

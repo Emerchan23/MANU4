@@ -112,7 +112,7 @@ export default function EditarEmpresaPage() {
               Editar Empresa
             </h1>
             <p className="text-gray-600 mt-1">
-              Atualize os dados da empresa "{company.name}"
+              Atualize os dados da empresa &quot;{company.name}&quot;
             </p>
           </div>
         </div>

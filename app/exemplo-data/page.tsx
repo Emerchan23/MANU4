@@ -191,7 +191,7 @@ export default function DateInputExample() {
               <h3 className="font-semibold mb-2">✅ Formato Aceito</h3>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>Digite apenas números: 25012024</li>
-                <li>A máscara adiciona "/" automaticamente: 25/01/2024</li>
+                <li>A máscara adiciona &quot;/&quot; automaticamente: 25/01/2024</li>
                 <li>Formato final: DD/MM/AAAA</li>
               </ul>
             </div>

@@ -268,7 +268,7 @@ export function useMaintenanceSchedules(initialFilters?: MaintenanceScheduleFilt
   // Load initial data
   useEffect(() => {
     fetchSchedules()
-  }, [])
+  }, [fetchSchedules])
 
   return {
     schedules,
