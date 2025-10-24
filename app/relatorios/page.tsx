@@ -139,7 +139,7 @@ export default function RelatoriosPage() {
       if (endDate) params.append('end_date', endDate)
       if (searchText) params.append('search', searchText)
 
-      const response = await fetch(`/api/equipments/search?${params}`)
+      const response = await fetch(`/api/relatorios/equipment/search?${params}`)
       
       if (response.ok) {
         const data = await response.json()

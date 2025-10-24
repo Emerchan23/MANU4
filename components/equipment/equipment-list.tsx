@@ -46,7 +46,12 @@ export default function EquipmentList({ onEdit }: EquipmentListProps) {
   
   const itemsPerPage = preferences.itemsPerPage;
   
-  console.log('📊 EquipmentList state:', { equipments, loading, error });
+  console.log('📊 EquipmentList state:', { 
+    equipments: equipments?.length || 0, 
+    loading, 
+    error,
+    equipmentsArray: equipments 
+  });
 
   // Filtrar equipamentos baseado na busca
   const filteredEquipments = useMemo(() => {
