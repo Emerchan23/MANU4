@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/database'
+import { query } from '@/lib/db'
 import { formatDateBR, formatDateISO, parseISODate } from '@/lib/date-utils-br'
 import { generateUniqueServiceOrderNumber } from '@/lib/service-order-utils'
 
@@ -267,10 +267,10 @@ export async function POST(request: NextRequest) {
       mappedPriority,
       estimatedCost,
       scheduledDateISO,
-      observations,
+      observations || null,
       createdBy,
-      assignedTo,
-      maintenanceType,
+      assignedTo || null,
+      maintenanceType || null,
       maintenanceTypeId
     ])
     
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
         e.name as equipment_name,
         e.patrimonio as equipment_patrimonio,
         c.name as company_name,
-        s.nome as sector_name,
+        s.name as sector_name,
         ss.name as subsector_name,
         u1.name as created_by_name,
         u2.name as assigned_to_name,

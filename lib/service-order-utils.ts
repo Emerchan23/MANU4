@@ -1,4 +1,4 @@
-import { db } from './db'
+import { query } from './db'
 
 /**
  * Gera o próximo número de ordem de serviço no formato OS-XXX/YYYY
@@ -9,7 +9,7 @@ export async function generateServiceOrderNumber(): Promise<string> {
   
   try {
     // Busca o último número de ordem do ano atual
-    const [rows] = await db.execute(`
+    const rows = await query(`
       SELECT order_number 
       FROM service_orders 
       WHERE YEAR(created_at) = ? 
@@ -47,7 +47,7 @@ export async function generateServiceOrderNumber(): Promise<string> {
  */
 export async function validateServiceOrderNumber(orderNumber: string): Promise<boolean> {
   try {
-    const [rows] = await db.execute(
+    const rows = await query(
       'SELECT id FROM service_orders WHERE order_number = ?',
       [orderNumber]
     )

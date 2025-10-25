@@ -305,7 +305,7 @@ function AgendamentosListaPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            status: 'cancelado'
+            status: 'CANCELADA'
           })
         })
 
@@ -488,6 +488,13 @@ function AgendamentosListaPage() {
       case 'COMPLETED': return <CheckCircle className="h-4 w-4" />
       case 'OS_GERADA': return <FileText className="h-4 w-4" />
       case 'OVERDUE': return <AlertTriangle className="h-4 w-4" />
+      case 'CANCELLED': return <Trash2 className="h-4 w-4" />
+      // Status do banco de dados
+      case 'AGENDADA': return <Clock className="h-4 w-4" />
+      case 'EM_ANDAMENTO': return <Wrench className="h-4 w-4" />
+      case 'CONCLUIDA': return <CheckCircle className="h-4 w-4" />
+      case 'CANCELADA': return <Trash2 className="h-4 w-4" />
+      case 'CONVERTIDA': return <FileText className="h-4 w-4" />
       default: return <Clock className="h-4 w-4" />
     }
   }
@@ -978,7 +985,7 @@ function AgendamentosListaPage() {
                           </Link>
                           
                           {/* Botão Cancelar - aparece para agendamentos não concluídos */}
-                          {(schedule.status !== 'COMPLETED' && schedule.status !== 'concluido' && schedule.status !== 'cancelado') && (
+                          {(schedule.status !== 'COMPLETED' && schedule.status !== 'CONCLUIDA' && schedule.status !== 'CANCELADA' && schedule.status !== 'concluido' && schedule.status !== 'cancelado') && (
                             <Button
                               size="sm"
                               variant="outline"
