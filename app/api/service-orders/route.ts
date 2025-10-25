@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
       FROM service_orders so
       LEFT JOIN equipment e ON so.equipment_id = e.id
       LEFT JOIN companies c ON so.company_id = c.id
-      LEFT JOIN setores s ON e.sector_id = s.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
       LEFT JOIN subsectors ss ON e.subsector_id = ss.id
       LEFT JOIN users u1 ON so.created_by = u1.id
       LEFT JOIN users u2 ON so.assigned_to = u2.id

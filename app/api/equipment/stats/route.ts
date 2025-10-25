@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
           s.name as sector_name,
           c.name as category_name
         FROM equipamentos e
-        LEFT JOIN setores s ON e.sector_id = s.id
+        LEFT JOIN sectors s ON e.sector_id = s.id
         LEFT JOIN categories c ON e.category_id = c.id
         WHERE e.id = ?
       `, [equipmentId])

@@ -92,7 +92,7 @@ nextApp.prepare().then(async () => {
   // Apply JSON middleware individually to each Express route
   app.use('/api/auth', express.json({ limit: '10mb' }), authRouter.default)
   app.use('/api/users', express.json({ limit: '10mb' }), usersRouter.default)
-  app.use('/api/sectors', express.json({ limit: '10mb' }), sectorsRouter.default)
+  // app.use('/api/sectors', express.json({ limit: '10mb' }), sectorsRouter.default) // Desabilitado - usando Next.js API route
   // Removido: app.use('/api/companies', express.json({ limit: '10mb' }), companiesRouter.default)
   app.use('/api/categories', express.json({ limit: '10mb' }), categoriesRouter.default)
   // app.use('/api/equipment', equipmentRouter.default) // Desabilitado - usando Next.js API route

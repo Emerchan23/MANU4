@@ -1,20 +1,25 @@
 import { NextResponse } from 'next/server'
 import { query, execute } from '@/lib/database'
-import type { DatabaseResult } from '@/types/database'
 
 export async function GET(request: Request) {
   try {
+    console.log('🔍 [SECTORS API] Iniciando busca de setores...')
+    
     const sql = `
-      SELECT s.id, s.nome as name, s.descricao as description, s.responsavel as manager_id, s.ativo as active, s.criado_em as created_at, s.atualizado_em as updated_at
-      FROM setores s
-      WHERE s.ativo = 1
-      ORDER BY s.nome
+      SELECT s.id, s.name, s.description, s.manager_id, s.active, s.created_at, s.updated_at
+      FROM sectors s
+      WHERE s.active = 1
+      ORDER BY s.name
     `
     
+    console.log('🔍 [SECTORS API] Executando query:', sql)
     const sectors = await query(sql) as any[]
+    console.log('✅ [SECTORS API] Setores encontrados:', sectors.length)
+    console.log('📋 [SECTORS API] Dados dos setores:', sectors)
+    
     return NextResponse.json(sectors)
   } catch (error) {
-    console.error('Erro ao buscar setores:', error)
+    console.error('💥 [SECTORS API] Erro ao buscar setores:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
     console.log('Dados recebidos para criar setor:', { name, description, manager_id: managerId })
     
     const insertQuery = `
-      INSERT INTO setores (nome, descricao, responsavel, ativo) 
+      INSERT INTO sectors (name, description, manager_id, active) 
       VALUES (?, ?, ?, 1)
     `
     
@@ -100,9 +105,9 @@ export async function PUT(request: Request) {
     console.log('Dados recebidos para atualizar setor:', { id, name, description, manager_id: managerId })
     
     const updateQuery = `
-      UPDATE setores 
-      SET nome = ?, descricao = ?, responsavel = ?, atualizado_em = CURRENT_TIMESTAMP
-      WHERE id = ? AND ativo = 1
+      UPDATE sectors 
+      SET name = ?, description = ?, manager_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND active = 1
     `
     
     const result = await execute(updateQuery, [
@@ -159,7 +164,7 @@ export async function DELETE(request: NextRequest) {
     
     // Verificar se há subsetores vinculados
     const subsectorsCheck = await query(
-      'SELECT COUNT(*) as count FROM subsetores WHERE setor_id = ?',
+      'SELECT COUNT(*) as count FROM subsectors WHERE sector_id = ?',
       [id]
     ) as any[]
     
@@ -185,7 +190,7 @@ export async function DELETE(request: NextRequest) {
     
     // Delete do setor
     const result = await execute(
-      'DELETE FROM setores WHERE id = ?',
+      'DELETE FROM sectors WHERE id = ?',
       [id]
     )
     

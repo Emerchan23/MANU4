@@ -18,6 +18,7 @@ interface WheelControlProps {
 }
 
 export default function WheelControl({ wheelId = 'wheel-1', onStateChange }: WheelControlProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const [wheelState, setWheelState] = useState<WheelState>({
     id: wheelId,
     name: 'Sistema de Rotação Principal',
@@ -32,6 +33,11 @@ export default function WheelControl({ wheelId = 'wheel-1', onStateChange }: Whe
   const [currentRPM, setCurrentRPM] = useState(0);
   const animationRef = useRef<number>();
   const lastTimeRef = useRef<number>(Date.now());
+
+  // Ensure component only renders on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Speed presets in RPM
   const speedPresets: Record<'slow' | 'medium' | 'fast', number> = {

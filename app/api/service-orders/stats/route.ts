@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
             u.name as assigned_user_name
           FROM service_orders so
           LEFT JOIN equipment e ON so.equipment_id = e.id
-          LEFT JOIN setores s ON e.sector_id = s.id
+          LEFT JOIN sectors s ON e.sector_id = s.id
           LEFT JOIN users u ON so.assigned_to = u.id
           WHERE so.id = ?
         `, [orderId])

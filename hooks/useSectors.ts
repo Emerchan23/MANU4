@@ -10,12 +10,14 @@ export function useSectors() {
 
   const fetchSectors = async () => {
     try {
+      console.log('🔍 [useSectors] Iniciando busca de setores...')
       setLoading(true)
       setError(null)
       
       // Authentication removed - allow access without user
 
       // Buscar setores
+      console.log('📡 [useSectors] Fazendo requisição para /api/sectors')
       const sectorsResponse = await fetch('/api/sectors', {
         headers: {
           'Content-Type': 'application/json'
@@ -23,13 +25,19 @@ export function useSectors() {
         credentials: 'include'
       })
 
+      console.log('📡 [useSectors] Status da resposta de setores:', sectorsResponse.status)
+      
       if (!sectorsResponse.ok) {
+        const errorText = await sectorsResponse.text()
+        console.error('💥 [useSectors] Erro na resposta de setores:', errorText)
         throw new Error('Erro ao buscar setores')
       }
 
       const sectorsData = await sectorsResponse.json()
+      console.log('✅ [useSectors] Setores recebidos:', sectorsData)
       
       // Buscar subsetores
+      console.log('📡 [useSectors] Fazendo requisição para /api/subsectors')
       const subsectorsResponse = await fetch('/api/subsectors', {
         headers: {
           'Content-Type': 'application/json'
@@ -37,11 +45,16 @@ export function useSectors() {
         credentials: 'include'
       })
 
+      console.log('📡 [useSectors] Status da resposta de subsetores:', subsectorsResponse.status)
+
       if (!subsectorsResponse.ok) {
+        const errorText = await subsectorsResponse.text()
+        console.error('💥 [useSectors] Erro na resposta de subsetores:', errorText)
         throw new Error('Erro ao buscar subsetores')
       }
 
       const subsectorsData = await subsectorsResponse.json()
+      console.log('✅ [useSectors] Subsetores recebidos:', subsectorsData)
       
       // Combinar setores com seus subsetores
       const sectorsWithSubsectors: SectorWithSubsectors[] = sectorsData.map((sector: any) => ({
@@ -61,9 +74,10 @@ export function useSectors() {
         updatedAt: new Date(sector.updated_at)
       }))
       
+      console.log('🔄 [useSectors] Setores processados:', sectorsWithSubsectors)
       setSectors(sectorsWithSubsectors)
     } catch (err) {
-      console.error('Erro ao buscar setores:', err)
+      console.error('💥 [useSectors] Erro ao buscar setores:', err)
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
       toast.error('Erro ao carregar setores')
     } finally {

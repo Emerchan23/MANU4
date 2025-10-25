@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       SELECT e.*, s.nome as sector_name,
              DATEDIFF(e.next_preventive_maintenance, CURDATE()) as days_until_maintenance
       FROM equipment e
-      LEFT JOIN setores s ON e.sector_id = s.id
+      LEFT JOIN sectors s ON e.sector_id = s.id
       WHERE e.next_preventive_maintenance IS NOT NULL
         AND e.next_preventive_maintenance BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       ORDER BY e.next_preventive_maintenance ASC

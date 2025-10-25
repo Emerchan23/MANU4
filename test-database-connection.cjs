@@ -1,57 +1,49 @@
 const mysql = require('mysql2/promise');
 
 async function testDatabaseConnection() {
-  console.log('🔍 Testando conexão com o banco de dados...');
-  
-  const config = {
+  const dbConfig = {
     host: 'localhost',
     user: 'root',
     password: '',
     database: 'hospital_maintenance',
     port: 3306
   };
-  
+
   try {
-    console.log('📡 Tentando conectar com:', config);
-    const connection = await mysql.createConnection(config);
+    console.log('🔍 Testando conexão com o banco de dados...');
+    const connection = await mysql.createConnection(dbConfig);
     
     console.log('✅ Conexão estabelecida com sucesso!');
     
-    // Testar se a tabela equipment existe
-    console.log('🔍 Verificando tabela equipment...');
-    const [tables] = await connection.execute("SHOW TABLES LIKE 'equipment'");
-    console.log('📊 Tabelas encontradas:', tables);
+    // Testar se a tabela sectors existe
+    console.log('🔍 Verificando se a tabela sectors existe...');
+    const [tables] = await connection.execute("SHOW TABLES LIKE 'sectors'");
     
-    if (tables.length > 0) {
-      // Verificar se existem equipamentos
-      console.log('🔍 Verificando equipamentos...');
-      const [equipments] = await connection.execute("SELECT id, name FROM equipment LIMIT 5");
-      console.log('📊 Equipamentos encontrados:', equipments);
-      
-      if (equipments.length > 0) {
-        // Testar busca por ID específico
-        console.log('🔍 Buscando equipamento ID 1...');
-        const [equipment] = await connection.execute("SELECT * FROM equipment WHERE id = ?", [1]);
-        console.log('📊 Equipamento ID 1:', equipment);
-      }
+    if (tables.length === 0) {
+      console.log('❌ Tabela "sectors" não encontrada!');
+      return;
+    }
+    
+    console.log('✅ Tabela "sectors" encontrada!');
+    
+    // Verificar dados na tabela sectors
+    console.log('🔍 Verificando dados na tabela sectors...');
+    const [rows] = await connection.execute('SELECT COUNT(*) as total FROM sectors');
+    console.log(`📊 Total de registros na tabela sectors: ${rows[0].total}`);
+    
+    if (rows[0].total > 0) {
+      console.log('🔍 Buscando alguns registros...');
+      const [sectors] = await connection.execute('SELECT id, name, description, active FROM sectors LIMIT 5');
+      console.log('📋 Registros encontrados:', sectors);
     }
     
     await connection.end();
-    console.log('✅ Teste de conexão concluído!');
+    console.log('✅ Teste concluído com sucesso!');
     
   } catch (error) {
-    console.error('❌ Erro de conexão:', error.message);
-    console.error('📋 Detalhes:', error);
-    
-    // Sugestões de solução
-    console.log('\n🔧 Possíveis soluções:');
-    console.log('1. Verificar se o XAMPP/MySQL está rodando');
-    console.log('2. Verificar se o banco "hospital_maintenance" existe');
-    console.log('3. Verificar credenciais de acesso');
-    console.log('4. Verificar se a porta 3306 está disponível');
+    console.error('❌ Erro ao conectar com o banco de dados:', error.message);
+    console.error('Stack trace:', error.stack);
   }
-  
-  process.exit(0);
 }
 
 testDatabaseConnection();
